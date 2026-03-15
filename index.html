@@ -1,255 +1,172 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquare, Download, Loader2 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  signInWithCustomToken, 
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  onSnapshot, 
-  addDoc 
-} from 'firebase/firestore';
-
-// --- Firebase Initialization ---
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'chrome-os-chat';
-
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [installPrompt, setInstallPrompt] = useState(null);
-  const messagesEndRef = useRef(null);
-
-  // --- 1. PWA Magic: Make it Installable ---
-  useEffect(() => {
-    // Listen for the browser's install prompt event
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // Dynamically inject a manifest and service worker so ChromeOS recognizes it as an app
-    let manifestUrl, swUrl;
-    try {
-      const manifest = {
-        name: "ChromeOS Chat",
-        short_name: "Chat App",
-        start_url: ".",
-        display: "standalone",
-        background_color: "#f3f4f6",
-        theme_color: "#2563eb",
-        icons: [{
-          src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M2ViIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTcuOSAyMEExMi4zOCAxMi4zOCAwIDAgMSAxNyA4YzAtNC43LTQuMy03LTktNy05IDBoLjJDMy42IDUuNiAzIDkuOCAzIDE0YzAgNC4zIDMuNCA3LjkgNy45IDZaIi8+PC9zdmc+",
-          sizes: "192x192",
-          type: "image/svg+xml"
-        }]
-      };
-      
-      const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-      manifestUrl = URL.createObjectURL(blob);
-      const link = document.createElement('link');
-      link.rel = 'manifest';
-      link.href = manifestUrl;
-      document.head.appendChild(link);
-
-      const swCode = `
-        self.addEventListener('install', (e) => self.skipWaiting());
-        self.addEventListener('activate', (e) => self.clients.claim());
-        self.addEventListener('fetch', (e) => {});
-      `;
-      const swBlob = new Blob([swCode], {type: 'application/javascript'});
-      swUrl = URL.createObjectURL(swBlob);
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register(swUrl).catch(() => {});
-      }
-    } catch (err) {
-      console.log("PWA injection skipped (normal for some iframe environments).");
-    }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      if (manifestUrl) URL.revokeObjectURL(manifestUrl);
-      if (swUrl) URL.revokeObjectURL(swUrl);
-    };
-  }, []);
-
-  // --- 2. Authentication ---
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (error) {
-        console.error("Auth error:", error);
-      }
-    };
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChromeOS Chat</title>
+    <!-- Tailwind CSS for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) setLoading(false);
-    });
+    <!-- Link to the real manifest file -->
+    <link rel="manifest" href="manifest.json">
     
-    return () => unsubscribe();
-  }, []);
-
-  // --- 3. Fetch Real-time Messages ---
-  useEffect(() => {
-    if (!user) return;
-
-    // Follow strict rules: public data path, simple query, sort in memory
-    const messagesRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-    
-    const unsubscribe = onSnapshot(messagesRef, (snapshot) => {
-      const fetchedMessages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      // Sort messages by timestamp in memory to avoid complex query requirements
-      fetchedMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      
-      setMessages(fetchedMessages);
-      setLoading(false);
-      
-      // Auto-scroll to bottom
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-      
-    }, (error) => {
-      console.error("Error fetching messages:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // --- 4. Handle Sending Messages ---
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !user) return;
-
-    const textToSend = newMessage.trim();
-    setNewMessage(''); // Clear input optimistically
-
-    try {
-      const messagesRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-      await addDoc(messagesRef, {
-        text: textToSend,
-        userId: user.uid,
-        createdAt: Date.now()
-      });
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
-  };
-
-  // --- 5. Handle App Installation ---
-  const triggerInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setInstallPrompt(null);
-    }
-  };
-
-  // --- UI Render ---
-  if (loading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin text-blue-600 w-10 h-10" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-screen w-full bg-gray-100 font-sans">
-      {/* App Header */}
-      <header className="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10">
-        <div className="flex items-center space-x-2">
-          <MessageSquare className="w-6 h-6" />
-          <h1 className="text-xl font-bold tracking-tight">ChromeOS Chat</h1>
-        </div>
+    <style>
+        /* Custom scrollbar to match native feel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        {installPrompt && (
-          <button 
-            onClick={triggerInstall}
-            className="flex items-center space-x-1 bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full text-sm font-medium"
-          >
-            <Download className="w-4 h-4" />
-            <span>Install App</span>
-          </button>
-        )}
-      </header>
+        #install-button { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans h-screen w-full flex flex-col overflow-hidden">
 
-      {/* Chat Messages Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3">
-            <MessageSquare className="w-12 h-12 opacity-50" />
-            <p>No messages yet. Say hello!</p>
-          </div>
-        ) : (
-          messages.map((msg) => {
-            const isMe = msg.userId === user?.uid;
-            return (
-              <div 
-                key={msg.id} 
-                className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}
-              >
-                <div 
-                  className={`max-w-[75%] px-4 py-2 rounded-2xl shadow-sm ${
-                    isMe 
-                      ? 'bg-blue-600 text-white rounded-br-none' 
-                      : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
-                  }`}
+    <!-- Main App Screen -->
+    <div id="app-screen" class="flex flex-col h-full w-full">
+        <!-- App Header -->
+        <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10 shrink-0">
+            <div class="flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <h1 class="text-xl font-bold tracking-tight">Offline Chat</h1>
+            </div>
+            
+            <button id="install-button" class="flex items-center space-x-1 bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full text-sm font-medium cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Install App</span>
+            </button>
+        </header>
+
+        <!-- Chat Messages Area -->
+        <main id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
+            <!-- Messages inject here -->
+        </main>
+
+        <!-- Input Area -->
+        <footer class="bg-white p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] shrink-0">
+            <form id="message-form" class="flex space-x-2 max-w-4xl mx-auto">
+                <input
+                    type="text"
+                    id="message-input"
+                    placeholder="Type a message..."
+                    autocomplete="off"
+                    class="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-full px-5 py-3 outline-none transition-all"
+                />
+                <button
+                    type="submit"
+                    id="send-button"
+                    disabled
+                    class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full w-12 h-12 flex items-center justify-center transition-colors shadow-sm shrink-0"
                 >
-                  <p className="break-words leading-relaxed">{msg.text}</p>
-                </div>
-              </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
-      </main>
-
-      {/* Input Area */}
-      <footer className="bg-white p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <form 
-          onSubmit={handleSendMessage} 
-          className="flex space-x-2 max-w-4xl mx-auto"
-        >
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-full px-5 py-3 outline-none transition-all"
-          />
-          <button
-            type="submit"
-            disabled={!newMessage.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full w-12 h-12 flex items-center justify-center transition-colors shadow-sm shrink-0"
-          >
-            <Send className="w-5 h-5 ml-1" /> {/* ml-1 to visually center the icon */}
-          </button>
-        </form>
-      </footer>
+                    <svg class="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </form>
+        </footer>
     </div>
-  );
-}
+
+    <script>
+        // DOM Elements
+        const messagesContainer = document.getElementById('messages-container');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const installButton = document.getElementById('install-button');
+
+        // State: Local in-memory messages array
+        let messages = [
+            { text: "Welcome to Offline Chat! I'm a local bot. Try sending me a message.", isMe: false }
+        ];
+
+        // --- 1. Real PWA Setup ---
+        let deferredPrompt = null;
+
+        // Register the Service Worker (Required by Chrome to install)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registered!'))
+                    .catch(err => console.log('Service Worker failed:', err));
+            });
+        }
+
+        // Listen for Chrome's native install prompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installButton.style.display = 'flex'; // Show our header button as well
+        });
+
+        // Handle clicking our custom install button
+        installButton.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                installButton.style.display = 'none';
+            }
+            deferredPrompt = null;
+        });
+
+        // --- 2. Chat Logic (Local Only) ---
+        function renderMessages() {
+            messagesContainer.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const wrapper = document.createElement('div');
+                wrapper.className = `flex w-full ${msg.isMe ? 'justify-end' : 'justify-start'}`;
+                
+                const bubble = document.createElement('div');
+                bubble.className = `max-w-[75%] px-4 py-2 rounded-2xl shadow-sm ${
+                    msg.isMe 
+                        ? 'bg-blue-600 text-white rounded-br-none' 
+                        : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
+                }`;
+                
+                const textNode = document.createElement('p');
+                textNode.className = "break-words leading-relaxed";
+                textNode.textContent = msg.text;
+                
+                bubble.appendChild(textNode);
+                wrapper.appendChild(bubble);
+                messagesContainer.appendChild(wrapper);
+            });
+
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 50);
+        }
+
+        messageInput.addEventListener('input', (e) => {
+            sendButton.disabled = e.target.value.trim().length === 0;
+        });
+
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const textToSend = messageInput.value.trim();
+            
+            if (!textToSend) return;
+
+            messages.push({ text: textToSend, isMe: true });
+            messageInput.value = '';
+            sendButton.disabled = true;
+            renderMessages();
+
+            setTimeout(() => {
+                const replies = [
+                    "That's interesting!",
+                    "Tell me more about that.",
+                    "I am currently offline, but I hear you.",
+                    "Haha, good one!",
+                    "I'm just a simple script, but I agree."
+                ];
+                const randomReply = replies[Math.floor(Math.random() * replies.length)];
+                
+                messages.push({ text: randomReply, isMe: false });
+                renderMessages();
+            }, 1000);
+        });
+
+        renderMessages();
+    </script>
+</body>
+</html>
