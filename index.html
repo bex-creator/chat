@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChromeOS Chat</title>
+    <!-- Tailwind CSS for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar to match native feel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Hide app initially to show loading spinner */
+        #app-screen { display: none; }
+        #install-button { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans h-screen w-full flex flex-col overflow-hidden">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="flex h-screen w-full items-center justify-center bg-gray-50 absolute inset-0 z-50">
+        <svg class="animate-spin text-blue-600 w-10 h-10" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="app-screen" class="flex flex-col h-full w-full">
+        <!-- App Header -->
+        <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10 shrink-0">
+            <div class="flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <h1 class="text-xl font-bold tracking-tight">ChromeOS Chat</h1>
+            </div>
+            
+            <button id="install-button" class="flex items-center space-x-1 bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full text-sm font-medium cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Install App</span>
+            </button>
+        </header>
+
+        <!-- Chat Messages Area -->
+        <main id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
+            <!-- Messages inject here -->
+        </main>
+
+        <!-- Input Area -->
+        <footer class="bg-white p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] shrink-0">
+            <form id="message-form" class="flex space-x-2 max-w-4xl mx-auto">
+                <input
+                    type="text"
+                    id="message-input"
+                    placeholder="Type a message..."
+                    autocomplete="off"
+                    class="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-full px-5 py-3 outline-none transition-all"
+                />
+                <button
+                    type="submit"
+                    id="send-button"
+                    disabled
+                    class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full w-12 h-12 flex items-center justify-center transition-colors shadow-sm shrink-0"
+                >
+                    <svg class="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </form>
+        </footer>
+    </div>
+
+    <!-- Firebase & Logic script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuration & Initialization ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'chrome-os-chat';
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // State variables
+        let currentUser = null;
+        let unsubscribeMessages = null;
+        let deferredPrompt = null;
+
+        // DOM Elements
+        const loadingScreen = document.getElementById('loading-screen');
+        const appScreen = document.getElementById('app-screen');
+        const messagesContainer = document.getElementById('messages-container');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const installButton = document.getElementById('install-button');
+
+        // --- 1. PWA Magic: Make it Installable ---
+        function setupPWA() {
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                installButton.style.display = 'flex'; // Show install button
+            });
+
+            installButton.addEventListener('click', async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installButton.style.display = 'none';
+                    deferredPrompt = null;
+                }
+            });
+
+            try {
+                const manifest = {
+                    name: "ChromeOS Chat",
+                    short_name: "Chat App",
+                    start_url: ".",
+                    display: "standalone",
+                    background_color: "#f3f4f6",
+                    theme_color: "#2563eb",
+                    icons: [{
+                        src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjU2M2ViIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTcuOSAyMEExMi4zOCAxMi4zOCAwIDAgMSAxNyA4YzAtNC43LTQuMy03LTktNy05IDBoLjJDMy42IDUuNiAzIDkuOCAzIDE0YzAgNC4zIDMuNCA3LjkgNy45IDZaIi8+PC9zdmc+",
+                        sizes: "192x192",
+                        type: "image/svg+xml"
+                    }]
+                };
+                
+                const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+                const manifestUrl = URL.createObjectURL(blob);
+                const link = document.createElement('link');
+                link.rel = 'manifest';
+                link.href = manifestUrl;
+                document.head.appendChild(link);
+
+                const swCode = `
+                    self.addEventListener('install', (e) => self.skipWaiting());
+                    self.addEventListener('activate', (e) => self.clients.claim());
+                    self.addEventListener('fetch', (e) => {});
+                `;
+                const swBlob = new Blob([swCode], {type: 'application/javascript'});
+                const swUrl = URL.createObjectURL(swBlob);
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register(swUrl).catch(() => {});
+                }
+            } catch (err) {
+                console.log("PWA injection skipped.");
+            }
+        }
+        setupPWA();
+
+        // --- 2. Authentication ---
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        };
+
+        // Listen for auth state changes
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                setupMessagesListener();
+            } else {
+                loadingScreen.style.display = 'none';
+                appScreen.style.display = 'flex';
+            }
+        });
+
+        // Initialize Authentication
+        initAuth();
+
+        // --- 3. Fetch Real-time Messages ---
+        function setupMessagesListener() {
+            if (!currentUser) return;
+            
+            // Clean up previous listener if it exists
+            if (unsubscribeMessages) unsubscribeMessages();
+
+            const messagesRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+            
+            unsubscribeMessages = onSnapshot(messagesRef, (snapshot) => {
+                const fetchedMessages = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Sort messages in memory
+                fetchedMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                
+                renderMessages(fetchedMessages);
+                
+                // Hide loading screen and show app
+                loadingScreen.style.display = 'none';
+                appScreen.style.display = 'flex';
+                
+            }, (error) => {
+                console.error("Error fetching messages:", error);
+                loadingScreen.style.display = 'none';
+                appScreen.style.display = 'flex';
+            });
+        }
+
+        // Render messages to DOM
+        function renderMessages(messages) {
+            messagesContainer.innerHTML = ''; // Clear container
+            
+            if (messages.length === 0) {
+                messagesContainer.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-gray-400 space-y-3 mt-10">
+                        <svg class="w-12 h-12 opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        <p>No messages yet. Say hello!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            messages.forEach(msg => {
+                const isMe = msg.userId === currentUser.uid;
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = `flex w-full ${isMe ? 'justify-end' : 'justify-start'}`;
+                
+                const bubble = document.createElement('div');
+                bubble.className = `max-w-[75%] px-4 py-2 rounded-2xl shadow-sm ${
+                    isMe 
+                        ? 'bg-blue-600 text-white rounded-br-none' 
+                        : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
+                }`;
+                
+                const textNode = document.createElement('p');
+                textNode.className = "break-words leading-relaxed";
+                textNode.textContent = msg.text; // Safe from XSS
+                
+                bubble.appendChild(textNode);
+                wrapper.appendChild(bubble);
+                messagesContainer.appendChild(wrapper);
+            });
+
+            // Auto-scroll to bottom
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 50);
+        }
+
+        // --- 4. Handle Sending Messages ---
+        // Toggle send button state based on input
+        messageInput.addEventListener('input', (e) => {
+            sendButton.disabled = e.target.value.trim().length === 0;
+        });
+
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const textToSend = messageInput.value.trim();
+            
+            if (!textToSend || !currentUser) return;
+
+            // Optimistically clear input
+            messageInput.value = '';
+            sendButton.disabled = true;
+
+            try {
+                const messagesRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+                await addDoc(messagesRef, {
+                    text: textToSend,
+                    userId: currentUser.uid,
+                    createdAt: Date.now()
+                });
+            } catch (error) {
+                console.error("Error sending message:", error);
+                // Revert if error
+                messageInput.value = textToSend;
+                sendButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
