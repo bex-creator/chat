@@ -3,14 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <!-- PWA Requirements -->
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#080b12">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="https://via.placeholder.com/192/635bff/ffffff?text=CS">
-
   <title>Chat Space</title>
   
   <!-- Tailwind CSS -->
@@ -38,11 +30,19 @@
   
   <style>
     /* Custom Scrollbar for a cleaner look */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #1e2536; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #2a344a; }
-    
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e2536;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #2a344a;
+    }
     .bg-pattern {
       background-image: radial-gradient(circle at 50% 50%, rgba(30, 37, 54, 0.4) 1px, transparent 1px);
       background-size: 24px 24px;
@@ -54,10 +54,33 @@
       70% { transform: scale(1); box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
       100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
     }
-    .badge-pulse { animation: pulse-ring 2s infinite; }
+    .badge-pulse {
+      animation: pulse-ring 2s infinite;
+    }
+
+    /* Animations for In-App Notifications (Toasts) */
+    @keyframes slide-in-toast {
+      from { transform: translateX(120%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes fade-out-toast {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(120%); opacity: 0; }
+    }
+    .animate-toast-in {
+      animation: slide-in-toast 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .animate-toast-out {
+      animation: fade-out-toast 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
   </style>
 </head>
 <body class="bg-mainBg text-slate-200 font-sans overflow-hidden">
+
+  <!-- ==================== NOTIFICATION CONTAINER ==================== -->
+  <div id="notification-container" class="fixed top-4 right-4 sm:top-auto sm:bottom-6 sm:right-6 z-[100] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none">
+    <!-- Toasts injected here dynamically -->
+  </div>
 
   <!-- ==================== SCREENS ==================== -->
 
@@ -108,20 +131,35 @@
     </div>
   </div>
 
-  <!-- 3. PROFILE SETUP SCREEN -->
+  <!-- 3a. PROFILE SETUP SCREEN (Username & PFP) -->
   <div id="profile-screen" class="hidden flex h-screen w-full items-center justify-center">
     <div class="w-full max-w-md p-8 rounded-2xl bg-sidebarBg border border-border flex flex-col items-center mx-4">
-      <img id="profile-setup-img" src="" alt="User profile" class="w-20 h-20 rounded-full border-4 border-indigo-500/30 mb-6 shadow-xl" />
+      
+      <!-- PFP Upload -->
+      <div class="relative mb-6 group cursor-pointer">
+        <input type="file" id="setup-pfp-input" accept="image/*" class="hidden" />
+        <label for="setup-pfp-input" class="cursor-pointer block relative rounded-full overflow-hidden w-24 h-24 border-4 border-indigo-500/30 shadow-xl">
+           <img id="profile-setup-img" src="" alt="User profile" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity bg-[#1e2536]" />
+           <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+              <i data-lucide="camera" class="text-white w-8 h-8"></i>
+           </div>
+        </label>
+        <div class="absolute -bottom-2 -right-2 bg-primary w-8 h-8 rounded-full border-2 border-sidebarBg flex items-center justify-center pointer-events-none shadow-lg">
+          <i data-lucide="upload" class="text-white w-4 h-4"></i>
+        </div>
+      </div>
+
       <h1 class="text-2xl font-bold text-white mb-2">Set up your profile</h1>
       <p id="profile-setup-desc" class="text-sm text-textMuted mb-8 text-center">
-        Choose a unique username to be identified by in the workspace.
+        Upload a photo and choose a unique username.
       </p>
       
       <form id="form-profile-setup" class="w-full">
+        <div id="profile-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-3 py-2 rounded-lg mb-4"></div>
         <input 
           id="input-username"
           type="text" 
-          placeholder="Username..."
+          placeholder="username (no spaces)"
           class="w-full bg-inputBg border border-transparent focus:border-slate-600 rounded-xl px-4 py-3.5 text-slate-200 placeholder-slate-500 mb-6 focus:outline-none transition-colors"
           required
         />
@@ -129,7 +167,7 @@
           type="submit"
           class="w-full py-3.5 rounded-xl font-medium text-white transition-all bg-primary hover:bg-primaryHover shadow-md"
         >
-          Finish Setup
+          Next Step
         </button>
         <button 
           type="button"
@@ -137,6 +175,35 @@
           class="w-full mt-4 text-sm text-slate-500 hover:text-white transition-colors"
         >
           Cancel and Logout
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3b. NICKNAME SETUP SCREEN -->
+  <div id="nickname-screen" class="hidden flex h-screen w-full items-center justify-center">
+    <div class="w-full max-w-md p-8 rounded-2xl bg-sidebarBg border border-border flex flex-col items-center mx-4">
+      <div class="w-20 h-20 rounded-full border-4 border-indigo-500/30 mb-6 shadow-xl flex items-center justify-center bg-primary">
+        <i data-lucide="smile" class="text-white w-10 h-10"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-white mb-2">Choose a Nickname</h1>
+      <p id="nickname-setup-desc" class="text-sm text-textMuted mb-8 text-center">
+        What should everyone call you? You can change this anytime.
+      </p>
+      
+      <form id="form-nickname-setup" class="w-full">
+        <input 
+          id="input-nickname"
+          type="text" 
+          placeholder="Display Name..."
+          class="w-full bg-inputBg border border-transparent focus:border-slate-600 rounded-xl px-4 py-3.5 text-slate-200 placeholder-slate-500 mb-6 focus:outline-none transition-colors"
+          required
+        />
+        <button 
+          type="submit"
+          class="w-full py-3.5 rounded-xl font-medium text-white transition-all bg-primary hover:bg-primaryHover shadow-md"
+        >
+          Enter Workspace
         </button>
       </form>
     </div>
@@ -186,14 +253,14 @@
       <div class="p-4 border-t border-border mt-auto bg-[#0f121d]">
         <div class="flex items-center justify-between">
           <div id="btn-edit-profile" class="flex items-center gap-3 cursor-pointer min-w-0 hover:bg-[#1e2536] p-2 -ml-2 rounded-lg transition-colors group" title="Edit Profile">
-            <img id="sidebar-user-img" src="" alt="User" class="w-9 h-9 flex-shrink-0 rounded-full border border-indigo-500/20 group-hover:border-indigo-500/50 transition-colors" />
+            <img id="sidebar-user-img" src="" alt="User" class="w-9 h-9 flex-shrink-0 rounded-full object-cover border border-indigo-500/20 group-hover:border-indigo-500/50 transition-colors bg-[#1e2536]" />
             <div class="flex flex-col min-w-0">
               <span class="font-semibold text-sm text-slate-200 truncate flex items-center gap-1.5">
-                <span id="sidebar-username"></span>
+                <span id="sidebar-nickname"></span>
                 <span id="sidebar-dev-badge" class="hidden text-[10px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-1.5 rounded font-black tracking-tighter">DEV</span>
                 <i data-lucide="edit-3" class="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"></i>
               </span>
-              <span class="text-xs text-slate-500 truncate">Online</span>
+              <span id="sidebar-username-display" class="text-xs text-slate-500 truncate"></span>
             </div>
           </div>
           <button id="btn-app-logout" class="text-slate-400 hover:text-red-400 transition-colors flex-shrink-0 p-2" title="Sign out">
@@ -264,10 +331,34 @@
       <form id="modal-form" class="flex flex-col gap-4">
         <div id="modal-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-3 py-2 rounded-lg"></div>
 
+        <!-- PFP Editor (Only in Edit Profile) -->
+        <div id="modal-pfp-group" class="hidden flex-col items-center gap-2 mb-2">
+          <div class="relative group cursor-pointer">
+            <input type="file" id="modal-pfp-input" accept="image/*" class="hidden" />
+            <label for="modal-pfp-input" class="cursor-pointer block relative rounded-full overflow-hidden w-20 h-20 border-2 border-indigo-500/50">
+               <img id="modal-pfp-preview" src="" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity bg-[#1e2536]" />
+               <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <i data-lucide="camera" class="text-white w-5 h-5"></i>
+               </div>
+            </label>
+          </div>
+          <span class="text-xs text-slate-400">Click to change avatar</span>
+        </div>
+
         <div id="modal-input-group" class="flex flex-col gap-2">
           <label id="modal-input-label" class="text-sm text-slate-400 font-medium">Input Label</label>
           <input 
             id="modal-input"
+            type="text" 
+            class="w-full bg-inputBg border border-transparent focus:border-slate-600 rounded-xl px-4 py-3 text-slate-200 focus:outline-none"
+          />
+        </div>
+
+        <!-- Second Input Group (used for editing Nickname alongside Username) -->
+        <div id="modal-input-group-2" class="hidden flex-col gap-2 mt-2">
+          <label id="modal-input-label-2" class="text-sm text-slate-400 font-medium">Nickname</label>
+          <input 
+            id="modal-input-2"
             type="text" 
             class="w-full bg-inputBg border border-transparent focus:border-slate-600 rounded-xl px-4 py-3 text-slate-200 focus:outline-none"
           />
@@ -378,6 +469,24 @@
     </div>
   </div>
 
+  <!-- ==================== USER LOGS MODAL ==================== -->
+  <div id="user-logs-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+    <div class="w-full max-w-3xl p-6 rounded-2xl bg-sidebarBg border border-border shadow-2xl flex flex-col max-h-[85vh]">
+      <div class="flex items-center justify-between mb-2 border-b border-border pb-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i data-lucide="file-text" class="w-6 h-6"></i> Chat Logs: <span id="logs-username-display" class="text-indigo-400"></span>
+        </h2>
+        <button onclick="closeUserLogsModal()" class="text-slate-400 hover:text-white transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-500 mb-4">Showing up to the last 200 messages sent by this user.</p>
+      <div id="user-logs-container" class="flex-1 overflow-y-auto pr-2 space-y-3">
+        <!-- Logs injected here -->
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== SCRIPT ==================== -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -399,16 +508,7 @@
       deleteDoc
     } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
-    // PWA Service Worker Registration
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('Service Worker registered!', reg))
-          .catch(err => console.log('Service Worker registration failed: ', err));
-      });
-    }
-
-    // Firebase Config (Safely uses the provided hardcoded credentials when hosted via Github Pages)
+    // Firebase Config
     let firebaseConfig;
     try {
       if (typeof __firebase_config !== 'undefined') {
@@ -442,6 +542,9 @@
     // Application State
     let firebaseUser = null;
     let userName = '';
+    let userNickname = '';
+    let currentPhotoURL = '';
+    let pendingPhotoURL = null; // Used during image uploads
     let lastUsernameChange = 0;
     let isJoined = false;
     let knownUsers = [];
@@ -479,6 +582,7 @@
       banned: document.getElementById('banned-screen'),
       login: document.getElementById('login-screen'),
       profile: document.getElementById('profile-screen'),
+      nickname: document.getElementById('nickname-screen'),
       app: document.getElementById('app-screen')
     };
 
@@ -486,6 +590,37 @@
       Object.values(screens).forEach(el => el.classList.add('hidden'));
       screens[screenName].classList.remove('hidden');
       lucide.createIcons();
+    }
+
+    // Image Resizer Function
+    function processImageFile(file, callback) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 150; // Perfect square size for avatars
+          
+          // Calculate cropping to make it a perfect square
+          const size = Math.min(img.width, img.height);
+          const startX = (img.width - size) / 2;
+          const startY = (img.height - size) / 2;
+          
+          canvas.width = MAX_SIZE;
+          canvas.height = MAX_SIZE;
+          const ctx = canvas.getContext('2d');
+          
+          // Draw image cropped to square and resized
+          ctx.drawImage(img, startX, startY, size, size, 0, 0, MAX_SIZE, MAX_SIZE);
+          
+          // Output compressed jpeg (quality 0.7 keeps it very small for Firestore)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          callback(dataUrl);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
     }
 
     // Suspension Utility
@@ -519,7 +654,7 @@
       document.getElementById('banned-title').textContent = expiryText.includes('Suspended') ? "Account Suspended" : "Access Denied";
     }
 
-    // Browser Notification Support
+    // Browser & In-App Notification Support
     function requestNotificationPermission() {
       if (!("Notification" in window)) {
         console.warn("This browser does not support desktop notification");
@@ -528,18 +663,31 @@
       }
     }
 
+    // Get chat display name utility function
+    function getChatDisplayName(chat) {
+        if (!chat) return "Chat Space";
+        if (chat.type === 'channel') return chat.name;
+        
+        // Handle DM names
+        const otherParticipant = (chat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
+        const otherProfile = allAppUsers.find(u => u.id === otherParticipant?.toLowerCase());
+        if (otherProfile && otherProfile.nickname) return otherProfile.nickname;
+        else if (otherParticipant) return otherParticipant;
+        
+        return "Direct Message";
+    }
+
     function sendBrowserNotification(msg, chat) {
       if (!("Notification" in window) || Notification.permission !== "granted") return;
 
-      let chatName = chat ? chat.name : "Chat Space";
-      if (chat && chat.type === 'dm') {
-         const otherParticipant = (chat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
-         if (otherParticipant) chatName = otherParticipant;
-      }
+      const chatName = getChatDisplayName(chat);
+      const senderProfile = allAppUsers.find(u => u.id === msg.sender.toLowerCase());
+      const displaySender = senderProfile?.nickname || msg.senderNickname || msg.sender;
+      const notificationIcon = senderProfile?.photoURL || msg.senderPhoto || 'https://via.placeholder.com/128';
 
       const notification = new Notification(`New message in ${chatName}`, {
-        body: `${msg.sender}: ${msg.text}`,
-        icon: msg.senderPhoto || 'https://via.placeholder.com/128'
+        body: `${displaySender}: ${msg.text}`,
+        icon: notificationIcon
       });
 
       notification.onclick = function() {
@@ -549,12 +697,74 @@
       };
     }
 
+    // Custom Discord-style In-App Notification (Toast)
+    function showInAppNotification(msg, chat) {
+        const container = document.getElementById('notification-container');
+        if (!container) return;
+
+        const chatName = getChatDisplayName(chat);
+        const isChannel = chat && chat.type === 'channel';
+        const senderProfile = allAppUsers.find(u => u.id === msg.sender.toLowerCase());
+        const displaySender = senderProfile?.nickname || msg.senderNickname || msg.sender;
+        const displayPhoto = senderProfile?.photoURL || msg.senderPhoto || 'https://via.placeholder.com/150';
+
+        // Create notification element
+        const toast = document.createElement('div');
+        toast.className = 'bg-[#1e2536] border border-border shadow-2xl rounded-xl p-3 flex gap-3 cursor-pointer hover:bg-[#2a344a] transition-colors pointer-events-auto animate-toast-in';
+        
+        // Determine context string (e.g., "in #general" or "Direct Message")
+        let contextString = isChannel ? `in #${chatName}` : 'Direct Message';
+
+        toast.innerHTML = `
+            <img src="${displayPhoto}" class="w-10 h-10 rounded-full bg-[#080b12] flex-shrink-0 object-cover border border-slate-700" alt="PFP" />
+            <div class="flex flex-col min-w-0 flex-1 justify-center">
+                <div class="flex items-center gap-1.5">
+                    <span class="font-bold text-white text-sm truncate">${displaySender}</span>
+                    <span class="text-xs text-slate-400 truncate">${contextString}</span>
+                </div>
+                <p class="text-slate-300 text-sm truncate mt-0.5">${msg.text}</p>
+            </div>
+        `;
+
+        // Click to open chat
+        toast.onclick = () => {
+            if (chat) selectChat(chat.id);
+            toast.classList.remove('animate-toast-in');
+            toast.classList.add('animate-toast-out');
+            setTimeout(() => toast.remove(), 400); 
+        };
+
+        // Auto-dismiss after 4.5 seconds
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.classList.remove('animate-toast-in');
+                toast.classList.add('animate-toast-out');
+                setTimeout(() => {
+                    if (toast.parentElement) toast.remove();
+                }, 400); 
+            }
+        }, 4500);
+
+        // Limit to 3 toasts on screen to prevent spam overflow
+        if (container.children.length >= 3) {
+             const oldest = container.firstChild;
+             oldest.classList.remove('animate-toast-in');
+             oldest.classList.add('animate-toast-out');
+             setTimeout(() => { if (oldest.parentElement) oldest.remove(); }, 400);
+        }
+
+        container.appendChild(toast);
+    }
+
     // 1. AUTHENTICATION & INITIALIZATION
     onAuthStateChanged(auth, async (user) => {
       firebaseUser = user;
       if (!user) {
         isJoined = false;
         userName = '';
+        userNickname = '';
+        currentPhotoURL = '';
+        pendingPhotoURL = null;
         hasInitialMessagesLoaded = false;
         if (unsubChats) unsubChats();
         if (unsubMsgs) unsubMsgs();
@@ -566,14 +776,24 @@
         try {
           const profileRef = doc(db, 'artifacts', APP_NAMESPACE, 'users', user.uid, 'profile', 'info');
           const profileSnap = await getDoc(profileRef);
+          
           if (profileSnap.exists() && profileSnap.data().username) {
             userName = profileSnap.data().username;
+            userNickname = profileSnap.data().nickname || '';
             lastUsernameChange = profileSnap.data().lastUsernameChange || 0;
-            isJoined = true;
-            setupApp();
+
+            if (!userNickname) {
+               // Need to set up nickname
+               document.getElementById('nickname-setup-desc').textContent = `Awesome, @${userName}! Now, what should we call you?`;
+               showScreen('nickname');
+            } else {
+               isJoined = true;
+               setupApp();
+            }
           } else {
-            document.getElementById('profile-setup-img').src = user.photoURL || 'https://via.placeholder.com/80';
-            document.getElementById('profile-setup-desc').textContent = `Hi ${user.displayName || 'there'}! Choose a unique username.`;
+            // Setup Profile Screen
+            pendingPhotoURL = null;
+            document.getElementById('profile-setup-img').src = user.photoURL || 'https://via.placeholder.com/150';
             showScreen('profile');
           }
         } catch (error) {
@@ -583,11 +803,27 @@
       }
     });
 
+    // PFP Image File Input Listeners
+    document.getElementById('setup-pfp-input').addEventListener('change', (e) => {
+      processImageFile(e.target.files[0], (base64Str) => {
+        pendingPhotoURL = base64Str;
+        document.getElementById('profile-setup-img').src = base64Str;
+      });
+    });
+
+    document.getElementById('modal-pfp-input').addEventListener('change', (e) => {
+      processImageFile(e.target.files[0], (base64Str) => {
+        pendingPhotoURL = base64Str;
+        document.getElementById('modal-pfp-preview').src = base64Str;
+        checkModalSubmitDisabled(); // Enable submit button since PFP changed
+      });
+    });
+
     // 2. FIRESTORE LISTENERS
     function setupApp() {
       showScreen('app');
-      document.getElementById('sidebar-user-img').src = firebaseUser.photoURL || 'https://via.placeholder.com/40';
-      document.getElementById('sidebar-username').textContent = userName;
+      document.getElementById('sidebar-nickname').textContent = userNickname;
+      document.getElementById('sidebar-username-display').textContent = `@${userName}`;
       
       // Toggle Dev Badge in sidebar
       if (firebaseUser.email === DEV_EMAIL) {
@@ -628,10 +864,19 @@
           snapshot.docChanges().forEach(change => {
             if (change.type === 'added') {
               const msg = { id: change.doc.id, ...change.doc.data() };
-              if (msg.sender.toLowerCase() !== userName.toLowerCase() && !isTabVisible) {
+              
+              // Notification Logic
+              if (msg.sender.toLowerCase() !== userName.toLowerCase()) {
                 const chat = allChats[msg.chatId] || { id: 'global', name: 'Global Chat', type: 'channel' };
                 if (hasChatAccess(chat)) {
-                  sendBrowserNotification(msg, chat);
+                  // Fallback to desktop notification if browser tab is completely hidden/minimized
+                  if (!isTabVisible) {
+                    sendBrowserNotification(msg, chat);
+                  } 
+                  // Show cool in-app popup if tab is visible but we are in a different chat
+                  else if (msg.chatId !== activeChatId) {
+                    showInAppNotification(msg, chat);
+                  }
                 }
               }
             }
@@ -668,13 +913,23 @@
         
         if (userName) {
           const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
-          if (myProfile && isUserSuspended(myProfile)) {
-            updateSuspendedScreen(myProfile);
-            showScreen('banned');
-          } else if (isJoined && document.getElementById('banned-screen').classList.contains('hidden') === false) {
-            showScreen('app'); 
+          if (myProfile) {
+            currentPhotoURL = myProfile.photoURL || firebaseUser.photoURL || 'https://via.placeholder.com/150';
+            document.getElementById('sidebar-user-img').src = currentPhotoURL;
+
+            if (isUserSuspended(myProfile)) {
+              updateSuspendedScreen(myProfile);
+              showScreen('banned');
+            } else if (isJoined && document.getElementById('banned-screen').classList.contains('hidden') === false) {
+              showScreen('app'); 
+            }
           }
         }
+
+        // Re-render things that depend on user data (like PFP and nicknames)
+        renderSidebar();
+        renderHeader();
+        renderMessages();
 
         if (!document.getElementById('admin-modal').classList.contains('hidden')) {
           renderAdminUsers();
@@ -722,28 +977,81 @@
 
     document.getElementById('btn-banned-logout').addEventListener('click', () => signOut(auth));
 
+    // STEP 1: Form Profile Setup (Username)
     document.getElementById('form-profile-setup').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = document.getElementById('input-username').value.trim();
+      const nameInput = document.getElementById('input-username');
+      let name = nameInput.value.trim().replace(/\s+/g, ''); // Ensure no spaces
+      
+      const errorEl = document.getElementById('profile-error');
+      errorEl.classList.add('hidden');
+
       if (name && firebaseUser) {
         document.querySelector('#form-profile-setup button[type="submit"]').disabled = true;
         try {
+          // Check if username is taken
+          const existingRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', name.toLowerCase());
+          const existingSnap = await getDoc(existingRef);
+          
+          if (existingSnap.exists()) {
+             errorEl.textContent = "Username is already taken. Please choose another.";
+             errorEl.classList.remove('hidden');
+             document.querySelector('#form-profile-setup button[type="submit"]').disabled = false;
+             return;
+          }
+
+          const finalPhoto = pendingPhotoURL || firebaseUser.photoURL || 'https://via.placeholder.com/150';
+
           await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', name.toLowerCase()), {
             username: name,
             joinedAt: Date.now(),
-            photoURL: firebaseUser.photoURL,
-            email: firebaseUser.email // Store email for badges
+            photoURL: finalPhoto,
+            email: firebaseUser.email
           });
           await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'users', firebaseUser.uid, 'profile', 'info'), {
             username: name,
             lastUsernameChange: 0
           });
+          
           userName = name;
+          currentPhotoURL = finalPhoto;
+          pendingPhotoURL = null; // reset
           lastUsernameChange = 0;
+          
+          // Move to Nickname step
+          document.getElementById('nickname-setup-desc').textContent = `Awesome, @${userName}! Now, what should we call you?`;
+          showScreen('nickname');
+
+        } catch (error) {
+          console.error("Error setting username", error);
+          errorEl.textContent = "An error occurred. Please try again.";
+          errorEl.classList.remove('hidden');
+          document.querySelector('#form-profile-setup button[type="submit"]').disabled = false;
+        }
+      }
+    });
+
+    // STEP 2: Form Nickname Setup
+    document.getElementById('form-nickname-setup').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nick = document.getElementById('input-nickname').value.trim();
+      
+      if (nick && firebaseUser && userName) {
+        document.querySelector('#form-nickname-setup button[type="submit"]').disabled = true;
+        try {
+          await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+            nickname: nick
+          });
+          await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'users', firebaseUser.uid, 'profile', 'info'), {
+            nickname: nick
+          }, { merge: true });
+          
+          userNickname = nick;
           isJoined = true;
           setupApp();
         } catch (error) {
-          console.error("Error setting username", error);
+          console.error("Error setting nickname", error);
+          document.querySelector('#form-nickname-setup button[type="submit"]').disabled = false;
         }
       }
     });
@@ -767,7 +1075,7 @@
 
     // Edit Profile Click Listener
     document.getElementById('btn-edit-profile').addEventListener('click', () => {
-      openModal('edit_username');
+      openModal('edit_profile');
     });
 
     // Tabs
@@ -791,12 +1099,27 @@
     tabChannels.addEventListener('click', () => setActiveTab('channel'));
     tabDMs.addEventListener('click', () => setActiveTab('dm'));
 
-    // Messaging
+ // Messaging
+    const MAX_CHARS = 500; // <-- Added character limit constant
     const msgInput = document.getElementById('input-message');
     const btnSendMsg = document.getElementById('btn-send-msg');
     
+    // Automatically apply HTML max-length attribute as a primary safeguard
+    if (msgInput) {
+      msgInput.setAttribute('maxlength', MAX_CHARS);
+    }
+    
     msgInput.addEventListener('input', (e) => {
-      if (e.target.value.trim()) {
+      let text = e.target.value;
+      
+      // Secondary safeguard: force truncate if they somehow bypass the HTML limit
+      if (text.length > MAX_CHARS) {
+        text = text.substring(0, MAX_CHARS);
+        e.target.value = text;
+      }
+
+      // Only show the send button if there's text AND it's under the limit
+      if (text.trim() && text.length <= MAX_CHARS) {
         btnSendMsg.classList.remove('hidden');
       } else {
         btnSendMsg.classList.add('hidden');
@@ -806,7 +1129,9 @@
     document.getElementById('form-send-message').addEventListener('submit', async (e) => {
       e.preventDefault();
       const text = msgInput.value.trim();
-      if (!text || !firebaseUser) return;
+      
+      // Added text.length > MAX_CHARS validation to prevent sending oversized messages
+      if (!text || !firebaseUser || text.length > MAX_CHARS) return;
       
       const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const msgRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId);
@@ -818,10 +1143,11 @@
         chatId: activeChatId,
         text: text,
         sender: userName,
-        senderEmail: firebaseUser.email, // Link email to message for dev badge
+        senderNickname: userNickname, // Save nickname at time of message (legacy/fallback)
+        senderEmail: firebaseUser.email,
         createdAt: Date.now(),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        senderPhoto: firebaseUser.photoURL
+        senderPhoto: currentPhotoURL // Save PFP at time of message (legacy/fallback)
       });
       
       markChatAsRead(activeChatId);
@@ -876,7 +1202,7 @@
         const iconName = chat.type === 'channel' ? (chat.isPrivate ? 'lock' : 'hash') : 'at-sign';
         const isUnread = !isActive && latestMessageTimes[chat.id] > (readReceipts[chat.id] || 0);
         
-        const subtitle = chat.type === 'channel' && chat.participants.length > 0 
+        let subtitle = chat.type === 'channel' && chat.participants.length > 0 
           ? `<span class="text-xs truncate flex items-center gap-1 ${isActive ? 'text-indigo-200' : 'text-slate-500'}">
               ${chat.participants.includes('All') ? 'Public room' : `${chat.participants.length} members`}
              </span>`
@@ -885,7 +1211,13 @@
         let displayName = chat.name;
         if (chat.type === 'dm') {
            const otherParticipant = (chat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
-           if (otherParticipant) displayName = otherParticipant;
+           const otherProfile = allAppUsers.find(u => u.id === otherParticipant?.toLowerCase());
+           if (otherProfile && otherProfile.nickname) {
+              displayName = otherProfile.nickname;
+              subtitle = `<span class="text-xs truncate text-slate-500">@${otherParticipant}</span>`;
+           } else if (otherParticipant) {
+              displayName = otherParticipant;
+           }
         }
 
         return `
@@ -911,7 +1243,12 @@
       let displayName = activeChat.name;
       if (activeChat.type === 'dm') {
          const otherParticipant = (activeChat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
-         if (otherParticipant) displayName = otherParticipant;
+         const otherProfile = allAppUsers.find(u => u.id === otherParticipant?.toLowerCase());
+         if (otherProfile && otherProfile.nickname) {
+             displayName = otherProfile.nickname;
+         } else if (otherParticipant) {
+             displayName = otherParticipant;
+         }
       }
       
       document.getElementById('header-chat-name').textContent = displayName;
@@ -970,7 +1307,9 @@
         let displayName = activeChat.name;
         if (activeChat.type === 'dm') {
            const otherParticipant = (activeChat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
-           if (otherParticipant) displayName = otherParticipant;
+           const otherProfile = allAppUsers.find(u => u.id === otherParticipant?.toLowerCase());
+           if (otherProfile && otherProfile.nickname) displayName = otherProfile.nickname;
+           else if (otherParticipant) displayName = otherParticipant;
         }
 
         container.innerHTML = `
@@ -987,22 +1326,28 @@
           <div class="flex flex-col gap-6 w-full max-w-4xl mx-auto">
             ${currentMessages.map(msg => {
               const isMe = msg.sender.toLowerCase() === userName.toLowerCase();
+              
+              // Dynamic profile lookup (to reflect real-time PFP and nickname changes)
+              const senderProfile = allAppUsers.find(u => u.id === msg.sender.toLowerCase());
+              const displaySender = senderProfile?.nickname || msg.senderNickname || msg.sender;
+              const displayPhoto = senderProfile?.photoURL || msg.senderPhoto || 'https://via.placeholder.com/150';
+              
               // Check for dev status by email tied to message
               const isDev = msg.senderEmail === DEV_EMAIL;
               const devBadge = isDev ? '<span class="text-[9px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-1 rounded font-black tracking-tighter">DEV</span>' : '';
 
               return `
                 <div class="flex gap-4 ${isMe ? 'flex-row-reverse' : ''}">
-                  <img src="${msg.senderPhoto || 'https://via.placeholder.com/40'}" class="w-10 h-10 rounded-full flex-shrink-0 border ${isMe ? 'border-indigo-500/50' : 'border-slate-700'}" />
+                  <img src="${displayPhoto}" class="w-10 h-10 object-cover rounded-full flex-shrink-0 border ${isMe ? 'border-indigo-500/50' : 'border-slate-700'} bg-[#1e2536]" />
                   <div class="flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}">
                     <div class="flex items-center gap-2 mb-1 ${isMe ? 'flex-row-reverse' : ''}">
                       <div class="flex items-center gap-1.5">
-                        <span class="font-medium text-slate-200">${isMe ? 'You' : msg.sender}</span>
+                        <span class="font-medium text-slate-200">${isMe ? 'You' : displaySender}</span>
                         ${devBadge}
                       </div>
                       <span class="text-xs text-slate-500">${msg.timestamp}</span>
                     </div>
-                    <div class="px-4 py-2 rounded-2xl text-white inline-block shadow-sm ${isMe ? 'bg-primary rounded-tr-none' : 'bg-[#1e2536] rounded-tl-none border border-border'}">${msg.text}</div>
+                    <div class="px-4 py-2 rounded-2xl text-white inline-block shadow-sm break-words ${isMe ? 'bg-primary rounded-tr-none' : 'bg-[#1e2536] rounded-tl-none border border-border'}">${msg.text}</div>
                   </div>
                 </div>
               `;
@@ -1021,6 +1366,16 @@
     const modalInputGroup = document.getElementById('modal-input-group');
     const modalInputLabel = document.getElementById('modal-input-label');
     const modalInput = document.getElementById('modal-input');
+    
+    // PFP Group in Edit modal
+    const modalPfpGroup = document.getElementById('modal-pfp-group');
+    const modalPfpPreview = document.getElementById('modal-pfp-preview');
+
+    // Nickname specific edit inputs
+    const modalInputGroup2 = document.getElementById('modal-input-group-2');
+    const modalInputLabel2 = document.getElementById('modal-input-label-2');
+    const modalInput2 = document.getElementById('modal-input-2');
+
     const modalInviteGroup = document.getElementById('modal-invite-group');
     const modalInviteInput = document.getElementById('modal-invite-input');
     const modalSelectedContacts = document.getElementById('modal-selected-contacts');
@@ -1031,14 +1386,18 @@
     window.openModal = function(type) {
       modalType = type;
       modalInput.value = '';
+      modalInput2.value = '';
       modalInviteInput.value = '';
       modalPrivateCheckbox.checked = false;
+      pendingPhotoURL = null; // Reset pending PFP
       selectedContacts = [];
       hideError();
       closeSidebarMobile();
       renderSelectedContacts();
 
       modalInputGroup.classList.remove('hidden');
+      modalInputGroup2.classList.add('hidden'); // Hide second input by default
+      modalPfpGroup.classList.add('hidden');
       modalInviteGroup.classList.add('hidden');
       modalPrivateGroup.classList.add('hidden');
       btnSubmitModal.classList.remove('hidden');
@@ -1069,25 +1428,41 @@
           modalInviteGroup.style.display = 'flex';
           btnSubmitModal.textContent = 'Invite Members';
           break;
-        case 'edit_username':
-          modalTitle.textContent = 'Edit Username';
+        case 'edit_profile':
+          modalTitle.textContent = 'Edit Profile';
+          
+          // Show PFP Upload
+          modalPfpGroup.classList.remove('hidden');
+          modalPfpGroup.style.display = 'flex';
+          modalPfpPreview.src = currentPhotoURL;
+
+          // Setup Username field
+          modalInputLabel.textContent = 'Username (@)';
+          modalInput.placeholder = 'e.g. cooluser123';
+          modalInput.value = userName;
+          
+          // Setup Nickname field
+          modalInputGroup2.classList.remove('hidden');
+          modalInputGroup2.style.display = 'flex';
+          modalInput2.value = userNickname;
+          
+          btnSubmitModal.textContent = 'Save Changes';
+          
           const ONE_DAY = 24 * 60 * 60 * 1000;
           if (Date.now() - lastUsernameChange < ONE_DAY && lastUsernameChange !== 0) {
              const hours = Math.ceil((ONE_DAY - (Date.now() - lastUsernameChange)) / 3600000);
-             modalInputGroup.classList.add('hidden');
-             btnSubmitModal.classList.add('hidden');
-             showError(`You can change your username once every 24 hours. Try again in ${hours} hour(s).`);
+             modalInput.disabled = true;
+             modalInput.classList.add('opacity-50', 'cursor-not-allowed');
+             modalInputLabel.textContent = `Username (@) - Locked for ${hours}h`;
           } else {
-             modalInputLabel.textContent = 'New Username';
-             modalInput.placeholder = 'e.g. cooluser123';
-             modalInput.value = userName;
-             btnSubmitModal.textContent = 'Save Changes';
+             modalInput.disabled = false;
+             modalInput.classList.remove('opacity-50', 'cursor-not-allowed');
           }
           break;
       }
       
       modalContainer.classList.remove('hidden');
-      if (type !== 'invite_to_channel' && type !== 'edit_username' || (type === 'edit_username' && !btnSubmitModal.classList.contains('hidden'))) {
+      if (type !== 'invite_to_channel' && type !== 'edit_profile' || (type === 'edit_profile' && !btnSubmitModal.classList.contains('hidden'))) {
          modalInput.focus();
       } else if (type === 'invite_to_channel') {
          modalInviteInput.focus();
@@ -1113,12 +1488,21 @@
         btnSubmitModal.disabled = !modalInput.value.trim();
       } else if (modalType === 'invite_to_channel') {
         btnSubmitModal.disabled = selectedContacts.length === 0;
-      } else if (modalType === 'edit_username') {
-        btnSubmitModal.disabled = !modalInput.value.trim() || modalInput.value.trim() === userName;
+      } else if (modalType === 'edit_profile') {
+        // Can submit if username, nickname, or photo changed
+        const newUname = modalInput.value.trim();
+        const newNick = modalInput2.value.trim();
+        
+        const usernameChanged = newUname !== userName && newUname !== '';
+        const nicknameChanged = newNick !== userNickname && newNick !== '';
+        const pfpChanged = pendingPhotoURL !== null;
+        
+        btnSubmitModal.disabled = !(usernameChanged || nicknameChanged || pfpChanged);
       }
     }
 
     modalInput.addEventListener('input', () => { hideError(); checkModalSubmitDisabled(); });
+    modalInput2.addEventListener('input', () => { hideError(); checkModalSubmitDisabled(); });
     modalInviteInput.addEventListener('input', hideError);
 
     document.getElementById('btn-add-chat').addEventListener('click', () => {
@@ -1172,7 +1556,7 @@
     function renderSelectedContacts() {
       modalSelectedContacts.innerHTML = selectedContacts.map(contact => `
         <div class="flex items-center gap-1.5 bg-[#2a344a] px-3 py-1.5 rounded-lg">
-          <span class="text-sm text-slate-200">${contact}</span>
+          <span class="text-sm text-slate-200">@${contact}</span>
           <button type="button" onclick="removeContactTag('${contact}')" class="text-slate-400 hover:text-white">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
@@ -1250,88 +1634,108 @@
           await updateDoc(chatRef, { participants: updatedParticipants });
         }
       }
-      else if (modalType === 'edit_username') {
-        const newName = inputVal;
+      else if (modalType === 'edit_profile') {
+        const newName = inputVal.replace(/\s+/g, '');
+        const newNick = modalInput2.value.trim();
+        const finalPhoto = pendingPhotoURL || currentPhotoURL;
         
-        if (newName === userName) {
-           closeModal(); return;
-        }
-
-        const newDocRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', newName.toLowerCase());
-        const newDocSnap = await getDoc(newDocRef);
-        
-        if (newDocSnap.exists() && newName.toLowerCase() !== userName.toLowerCase()) {
-           showError("Username already taken!"); return;
-        }
-
         btnSubmitModal.disabled = true;
         btnSubmitModal.textContent = 'Saving...';
 
         try {
-           const oldName = userName;
-           
-           const chatsToUpdate = Object.values(allChats).filter(c => 
-               (c.participants && c.participants.some(p => p.toLowerCase() === oldName.toLowerCase())) || 
-               (c.creator && c.creator.toLowerCase() === oldName.toLowerCase())
-           );
-           
-           const updatePromises = chatsToUpdate.map(chat => {
-               const chatRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chat.id);
-               const updates = {};
-               let hasChanges = false;
+           // Handle Username Change
+           if (newName && newName !== userName && !modalInput.disabled) {
+               const newDocRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', newName.toLowerCase());
+               const newDocSnap = await getDoc(newDocRef);
                
-               if (chat.participants && chat.participants.some(p => p.toLowerCase() === oldName.toLowerCase())) {
-                   updates.participants = chat.participants.map(p => p.toLowerCase() === oldName.toLowerCase() ? newName : p);
-                   hasChanges = true;
+               if (newDocSnap.exists()) {
+                  showError("Username already taken!");
+                  btnSubmitModal.disabled = false;
+                  btnSubmitModal.textContent = 'Save Changes';
+                  return;
                }
-               if (chat.creator && chat.creator.toLowerCase() === oldName.toLowerCase()) {
-                   updates.creator = newName;
-                   hasChanges = true;
-               }
+
+               const oldName = userName;
                
-               if (hasChanges) {
-                   return updateDoc(chatRef, updates);
+               const chatsToUpdate = Object.values(allChats).filter(c => 
+                   (c.participants && c.participants.some(p => p.toLowerCase() === oldName.toLowerCase())) || 
+                   (c.creator && c.creator.toLowerCase() === oldName.toLowerCase())
+               );
+               
+               const updatePromises = chatsToUpdate.map(chat => {
+                   const chatRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chat.id);
+                   const updates = {};
+                   let hasChanges = false;
+                   
+                   if (chat.participants && chat.participants.some(p => p.toLowerCase() === oldName.toLowerCase())) {
+                       updates.participants = chat.participants.map(p => p.toLowerCase() === oldName.toLowerCase() ? newName : p);
+                       hasChanges = true;
+                   }
+                   if (chat.creator && chat.creator.toLowerCase() === oldName.toLowerCase()) {
+                       updates.creator = newName;
+                       hasChanges = true;
+                   }
+                   
+                   if (hasChanges) {
+                       return updateDoc(chatRef, updates);
+                   }
+                   return Promise.resolve();
+               });
+
+               const messagesToUpdate = allMessages.filter(m => m.sender.toLowerCase() === oldName.toLowerCase());
+               const msgUpdatePromises = messagesToUpdate.map(msg => {
+                   const msgRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msg.id);
+                   return updateDoc(msgRef, { sender: newName });
+               });
+
+               await Promise.all([...updatePromises, ...msgUpdatePromises]);
+
+               const oldPublicDocRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', oldName.toLowerCase());
+               const oldPublicSnap = await getDoc(oldPublicDocRef);
+               
+               let publicData = { username: newName, nickname: newNick || userNickname, joinedAt: Date.now(), photoURL: finalPhoto, email: firebaseUser.email };
+               if (oldPublicSnap.exists()) {
+                   publicData = { ...oldPublicSnap.data(), username: newName, nickname: newNick || userNickname, photoURL: finalPhoto };
                }
-               return Promise.resolve();
-           });
 
-           const messagesToUpdate = allMessages.filter(m => m.sender.toLowerCase() === oldName.toLowerCase());
-           const msgUpdatePromises = messagesToUpdate.map(msg => {
-               const msgRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msg.id);
-               return updateDoc(msgRef, { sender: newName });
-           });
-
-           await Promise.all([...updatePromises, ...msgUpdatePromises]);
-
-           const oldPublicDocRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', oldName.toLowerCase());
-           const oldPublicSnap = await getDoc(oldPublicDocRef);
-           
-           let publicData = { username: newName, joinedAt: Date.now(), photoURL: firebaseUser.photoURL, email: firebaseUser.email };
-           if (oldPublicSnap.exists()) {
-               publicData = { ...oldPublicSnap.data(), username: newName };
-           }
-
-           if (oldName.toLowerCase() !== newName.toLowerCase()) {
                await setDoc(newDocRef, publicData);
                await deleteDoc(oldPublicDocRef);
-           } else {
-               await updateDoc(oldPublicDocRef, { username: newName });
+
+               await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'users', firebaseUser.uid, 'profile', 'info'), {
+                   username: newName,
+                   nickname: newNick || userNickname,
+                   lastUsernameChange: Date.now()
+               }, { merge: true });
+
+               userName = newName;
+               lastUsernameChange = Date.now();
+           } 
+           else if ((newNick && newNick !== userNickname) || pendingPhotoURL) {
+               // Handle Nickname or Photo Change Only (if username didn't change or was locked)
+               await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                 nickname: newNick || userNickname,
+                 photoURL: finalPhoto
+               });
+               if (newNick && newNick !== userNickname) {
+                   await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'users', firebaseUser.uid, 'profile', 'info'), {
+                     nickname: newNick
+                   }, { merge: true });
+               }
            }
 
-           await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'users', firebaseUser.uid, 'profile', 'info'), {
-               username: newName,
-               lastUsernameChange: Date.now()
-           }, { merge: true });
+           userNickname = newNick || userNickname;
+           currentPhotoURL = finalPhoto;
 
-           userName = newName;
-           lastUsernameChange = Date.now();
-           document.getElementById('sidebar-username').textContent = userName;
+           // Visual Updates
+           document.getElementById('sidebar-nickname').textContent = userNickname;
+           document.getElementById('sidebar-username-display').textContent = `@${userName}`;
+           document.getElementById('sidebar-user-img').src = currentPhotoURL;
            
            renderSidebar();
            renderHeader();
         } catch (err) {
-           console.error("Error updating username", err);
-           showError("Failed to update username. Try again.");
+           console.error("Error updating profile", err);
+           showError("Failed to update profile. Try again.");
            btnSubmitModal.disabled = false;
            btnSubmitModal.textContent = 'Save Changes';
            return;
@@ -1364,7 +1768,9 @@
       let displayName = activeChat ? activeChat.name : 'Unknown';
       if (activeChat && activeChat.type === 'dm') {
          const otherParticipant = (activeChat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
-         if (otherParticipant) displayName = otherParticipant;
+         const otherProfile = allAppUsers.find(u => u.id === otherParticipant?.toLowerCase());
+         if (otherProfile && otherProfile.nickname) displayName = otherProfile.nickname;
+         else if (otherParticipant) displayName = otherParticipant;
       }
       document.getElementById('admin-current-chat-name').textContent = `${activeChat && activeChat.type === 'channel' ? '#' : '@'}${displayName}`;
 
@@ -1453,6 +1859,7 @@
         const isMe = u.username.toLowerCase() === userName.toLowerCase();
         const suspended = isUserSuspended(u);
         const isDev = u.email === DEV_EMAIL;
+        const displayPhoto = u.photoURL || 'https://via.placeholder.com/40';
         
         let badge = '';
         let subtitle = `Joined: ${new Date(u.joinedAt).toLocaleDateString()}`;
@@ -1475,24 +1882,78 @@
            `<button onclick="liftSuspension('${u.id}')" class="px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm bg-slate-700 text-white hover:bg-slate-600">Lift Restriction</button>` :
            `<button onclick="openSuspendModal('${u.id}', '${u.username.replace(/'/g, "\\'")}')" class="px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20">Restrict</button>`;
 
+        const logsBtn = `<button onclick="openUserLogsModal('${u.id}', '${u.username.replace(/'/g, "\\'")}')" class="px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm bg-[#1e2536] text-slate-300 hover:bg-slate-700 border border-slate-600">Logs</button>`;
+
+        const displayName = u.nickname ? `${u.nickname} <span class="text-xs font-normal text-slate-400">(@${u.username})</span>` : `@${u.username}`;
+
         return `
-          <div class="flex items-center justify-between p-3 border border-border bg-[#080b12] rounded-xl hover:border-slate-600 transition-colors">
+          <div class="flex items-center justify-between p-3 border border-border bg-[#080b12] rounded-xl hover:border-slate-600 transition-colors flex-wrap gap-3">
             <div class="flex items-center gap-3">
-              <img src="${u.photoURL || 'https://via.placeholder.com/40'}" class="w-10 h-10 rounded-full border border-indigo-500/20" />
+              <img src="${displayPhoto}" class="w-10 h-10 object-cover rounded-full border border-indigo-500/20 bg-[#1e2536]" />
               <div>
                 <p class="font-bold text-slate-200 flex items-center gap-2">
-                  ${u.username} 
+                  ${displayName} 
                   ${isMe ? '<span class="text-xs font-semibold bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/20">You</span>' : ''}
                   ${badge}
                 </p>
                 <p class="text-xs ${suspended ? 'text-red-400' : 'text-slate-500'}">${subtitle}</p>
               </div>
             </div>
-            ${!isMe ? actionBtn : ''}
+            <div class="flex items-center gap-2">
+              ${logsBtn}
+              ${!isMe ? actionBtn : ''}
+            </div>
           </div>
         `;
       }).join('');
       lucide.createIcons();
+    };
+
+    window.openUserLogsModal = function(userId, username) {
+      if (!firebaseUser || firebaseUser.email !== ADMIN_EMAIL) return;
+
+      document.getElementById('logs-username-display').textContent = `@${username}`;
+      const container = document.getElementById('user-logs-container');
+      
+      const userMessages = allMessages
+        .filter(m => m.sender.toLowerCase() === username.toLowerCase())
+        .sort((a, b) => b.createdAt - a.createdAt) // Sort newest to oldest
+        .slice(0, 200); 
+
+      if (userMessages.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 text-center py-4">No messages found for this user.</p>';
+      } else {
+        container.innerHTML = userMessages.map(msg => {
+          const chat = allChats[msg.chatId];
+          let chatName = 'Unknown Chat';
+          if (chat) {
+            if (chat.type === 'channel') {
+               chatName = `#${chat.name}`;
+            } else if (chat.type === 'dm') {
+               const otherParticipant = (chat.participants || []).find(p => p.toLowerCase() !== username.toLowerCase());
+               chatName = `DM with @${otherParticipant || 'Unknown'}`;
+            }
+          }
+          const date = new Date(msg.createdAt).toLocaleString();
+          
+          return `
+            <div class="bg-[#080b12] border border-border p-3 rounded-xl flex flex-col gap-1">
+              <div class="flex justify-between items-start mb-1">
+                <span class="text-xs font-bold text-indigo-400">${chatName}</span>
+                <span class="text-[10px] text-slate-500">${date}</span>
+              </div>
+              <p class="text-sm text-slate-200 break-words whitespace-pre-wrap">${msg.text}</p>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      document.getElementById('user-logs-modal').classList.remove('hidden');
+      lucide.createIcons();
+    };
+
+    window.closeUserLogsModal = function() {
+      document.getElementById('user-logs-modal').classList.add('hidden');
     };
 
     // Chat Clear Logic
