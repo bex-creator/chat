@@ -1006,16 +1006,52 @@
         localStorage.setItem('chat_theme', name);
     };
 
-    // Visibility State Tracking for Notifications
+    // --- AUTO PRESENCE & VISIBILITY TRACKING ---
     let isTabVisible = document.visibilityState === 'visible';
+    let presenceThrottle = null;
+
+    function setAutoPresence(status) {
+        if (!firebaseUser || !userName) return;
+        
+        // Prevent spamming the database on rapid window switching
+        if (presenceThrottle) clearTimeout(presenceThrottle);
+        
+        // Immediate update for offline (closing the tab)
+        if (status === 'offline') {
+            updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                presence: status
+            }).catch(()=>{});
+            return;
+        }
+
+        // 2-second delay for online/away transitions to prevent flickering
+        presenceThrottle = setTimeout(() => {
+            updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                presence: status
+            }).catch(e => console.log('Presence update error', e));
+        }, 2000); 
+    }
+
     document.addEventListener("visibilitychange", () => {
       isTabVisible = document.visibilityState === "visible";
-      if (isTabVisible && activeChatId && latestMessageTimes[activeChatId]) {
-        if (latestMessageTimes[activeChatId] > (readReceipts[activeChatId] || 0)) {
-          markChatAsRead(activeChatId);
-        }
+      
+      if (isTabVisible) {
+          setAutoPresence('online');
+          // Handle read receipts
+          if (activeChatId && latestMessageTimes[activeChatId]) {
+            if (latestMessageTimes[activeChatId] > (readReceipts[activeChatId] || 0)) {
+              markChatAsRead(activeChatId);
+            }
+          }
+      } else {
+          setAutoPresence('away');
       }
     });
+
+    window.addEventListener('focus', () => setAutoPresence('online'));
+    window.addEventListener('blur', () => setAutoPresence('away'));
+    window.addEventListener('beforeunload', () => setAutoPresence('offline'));
+    window.addEventListener('pagehide', () => setAutoPresence('offline'));
 
     // Elements
     const screens = {
