@@ -1009,7 +1009,7 @@
     // --- AUTO PRESENCE & VISIBILITY TRACKING (IMPROVED) ---
     let isTabVisible = document.visibilityState === 'visible';
     let presenceThrottle = null;
-    let currentReportedPresence = 'online';
+    let currentReportedPresence = null; // FIXED: Starts as null so the very first update is forced through
 
     function setAutoPresence(status) {
         if (!firebaseUser || !userName || currentReportedPresence === status) return;
@@ -1017,16 +1017,16 @@
         // Prevent spamming the database on rapid window switching
         if (presenceThrottle) clearTimeout(presenceThrottle);
         
-        // Immediate update for offline (closing the tab)
-        if (status === 'offline') {
-            currentReportedPresence = 'offline';
+        // Immediate update for offline AND online (returning to tab should be instant!)
+        if (status === 'offline' || status === 'online') {
+            currentReportedPresence = status;
             updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
-                presence: 'offline'
+                presence: status
             }).catch(()=>{});
             return;
         }
 
-        // 3-second delay for online/away transitions to prevent flickering
+        // 3-second delay for 'away' transitions to prevent flickering
         presenceThrottle = setTimeout(() => {
             currentReportedPresence = status;
             updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
@@ -1050,6 +1050,9 @@
           setAutoPresence('away');
       }
     });
+
+    // Catches clicks into the app from other monitors
+    window.addEventListener('focus', () => setAutoPresence('online'));
 
     // Most reliable modern method to catch tab closures
     window.addEventListener('pagehide', () => setAutoPresence('offline'));
@@ -1347,6 +1350,9 @@
       showScreen('app');
       document.getElementById('sidebar-nickname').textContent = userNickname;
       document.getElementById('sidebar-username-display').textContent = `@${userName}`;
+      
+      // Force 'online' presence broadcast as soon as setup completes
+      setAutoPresence('online');
       
       const role = myRole();
 
