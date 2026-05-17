@@ -1185,7 +1185,7 @@
         return "Direct Message";
     }
 
-    function sendBrowserNotification(msg, chat) {
+    async function sendBrowserNotification(msg, chat) {
       if (!appSettings.notifications) return; 
       if (!("Notification" in window) || Notification.permission !== "granted") return;
 
@@ -1194,11 +1194,29 @@
       const displaySender = senderProfile?.nickname || msg.senderNickname || msg.sender;
       const notificationIcon = senderProfile?.photoURL || msg.senderPhoto || 'https://via.placeholder.com/128';
 
-      const notification = new Notification(`New message in ${chatName}`, {
+      const title = `New message in ${chatName}`;
+      const options = {
         body: `${displaySender}: ${msg.text}`,
-        icon: notificationIcon
-      });
+        icon: notificationIcon,
+        tag: `chat-${chat ? chat.id : 'global'}`, // Groups multiple notifications together
+        data: { url: window.location.origin } // Tells the service worker where to redirect on tap
+      };
 
+      // Mobile / PWA Requirement: Route through Service Worker
+      if ('serviceWorker' in navigator) {
+          try {
+              const reg = await navigator.serviceWorker.ready;
+              if (reg && reg.showNotification) {
+                  await reg.showNotification(title, options);
+                  return;
+              }
+          } catch(e) {
+              console.log("SW notification failed, falling back.", e);
+          }
+      }
+
+      // Desktop Fallback
+      const notification = new Notification(title, options);
       notification.onclick = function() {
         window.focus();
         if (chat) selectChat(chat.id);
