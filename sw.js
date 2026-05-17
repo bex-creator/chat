@@ -1,27 +1,24 @@
-const CACHE_NAME = 'chatspace-cache-v1';
-const urlsToCache = [
-  './',
+const CACHE_NAME = 'chat-space-v1';
+const ASSETS_TO_CACHE = [
   './index.html',
   './manifest.json'
 ];
 
-// Install event: Caches the initial assets
-self.addEventListener('install', event => {
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache);
-      })
+      .then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
-  self.skipWaiting();
 });
 
-// Activate event: Clean up old caches if the name changes
-self.addEventListener('activate', event => {
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+  // Clear old caches if you change the CACHE_NAME version
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map(cacheName => {
+        cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
@@ -29,22 +26,27 @@ self.addEventListener('activate', event => {
       );
     })
   );
-  self.clients.claim();
 });
 
-// Fetch event: Serve from cache, fallback to network
-self.addEventListener('fetch', event => {
-  // We only want to cache GET requests for our local assets.
-  // API requests (like Firebase) should bypass the service worker cache.
-  if (event.request.method !== 'GET' || event.request.url.includes('firestore.googleapis.com')) {
-    return;
-  }
+self.addEventListener('fetch', (event) => {
+  // Firebase handles its own live data fetching/offline support.
+  // We use a network-first strategy for the app shell to satisfy PWA criteria
+  // while ensuring users always get the latest version.
+  if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Return cached response if found, otherwise fetch from network
-        return response || fetch(event.request);
+    fetch(event.request)
+      .then((response) => {
+        // Cache the latest successful network response
+        const responseClone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseClone);
+        });
+        return response;
+      })
+      .catch(() => {
+        // If offline, serve from cache
+        return caches.match(event.request);
       })
   );
 });
