@@ -349,6 +349,10 @@
               DMs
               <span id="dm-unread-indicator" class="hidden absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full badge-pulse shadow-sm shadow-red-500/50"></span>
             </button>
+            <!-- Games Tab -->
+            <button id="tab-games" class="flex-1 py-1.5 px-2 rounded-lg text-[13px] font-medium transition-all text-textMuted hover:text-slate-300 relative">
+              Games
+            </button>
             <!-- Admin Tab -->
             <button id="tab-admin" style="display: none;" class="px-2 py-1.5 rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all text-red-500/70 hover:text-red-400 relative">
               ALL
@@ -432,7 +436,12 @@
         <!-- Messages injected here -->
       </div>
 
-      <div class="p-4 bg-mainBg z-10 relative">
+      <!-- Game Container -->
+      <div id="game-container" class="hidden flex-1 w-full h-full bg-mainBg z-20 relative">
+        <iframe id="game-iframe" class="w-full h-full border-none" src="" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+      </div>
+
+      <div id="chat-input-wrapper" class="p-4 bg-mainBg z-10 relative">
         
         <!-- Chat Image Preview -->
         <div id="chat-image-preview-container" class="hidden absolute bottom-full left-4 mb-2">
@@ -593,6 +602,14 @@
               <input type="color" id="modal-color-input" class="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0" value="#ffffff" />
               <span class="text-sm text-textMuted">Choose a custom color</span>
           </div>
+        </div>
+
+        <!-- Game Invite Dropdown -->
+        <div id="modal-game-invite-group" class="hidden flex-col gap-2 mt-1">
+          <label class="text-sm text-slate-300 font-semibold ml-1">Select chat to send invite</label>
+          <select id="modal-game-invite-select" class="w-full bg-inputBg border border-white/5 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 rounded-xl px-4 py-3.5 text-slate-100 outline-none transition-all cursor-pointer">
+             <!-- Injected via JS -->
+          </select>
         </div>
 
         <div id="modal-private-group" class="hidden flex items-center gap-3 mt-1 bg-inputBg p-3 rounded-xl border border-white/5">
@@ -974,6 +991,15 @@
     
     let activeChatId = 'global';
     let activeTab = 'channel'; 
+    
+    // Active Multiplayer Game State
+    let activeGameData = null;
+    let unsubActiveGame = null;
+
+    // Custom Games List
+    let appGames = [
+        { id: 'game_tictactoe', name: 'Tic Tac Toe', desc: 'Classic 2-player multiplayer', icon: 'grid' }
+    ];
     
     // Modal State
     let modalType = null; 
@@ -1924,15 +1950,17 @@
     // Tabs
     const tabChannels = document.getElementById('tab-channels');
     const tabDMs = document.getElementById('tab-dms');
+    const tabGames = document.getElementById('tab-games');
 
     function setActiveTab(tab) {
       activeTab = tab;
       
-      const defaultClass = "flex-1 py-1.5 px-2 rounded-lg text-sm font-medium transition-all text-textMuted hover:text-slate-300 relative";
-      const activeClass = "flex-1 py-1.5 px-2 rounded-lg text-sm font-semibold transition-all bg-white/10 text-white shadow-sm border border-white/5 relative";
+      const defaultClass = "flex-1 py-1.5 px-2 rounded-lg text-[13px] font-medium transition-all text-textMuted hover:text-slate-300 relative";
+      const activeClass = "flex-1 py-1.5 px-2 rounded-lg text-[13px] font-semibold transition-all bg-white/10 text-white shadow-sm border border-white/5 relative";
 
       tabChannels.className = tab === 'channel' ? activeClass : defaultClass;
       tabDMs.className = tab === 'dm' ? activeClass : defaultClass;
+      tabGames.className = tab === 'game' ? activeClass : defaultClass;
 
       const tabAdmin = document.getElementById('tab-admin');
       if (tabAdmin) {
@@ -1950,6 +1978,7 @@
 
       if (tab === 'channel') document.getElementById('sidebar-list-title').textContent = 'All Channels';
       else if (tab === 'dm') document.getElementById('sidebar-list-title').textContent = 'Direct Messages';
+      else if (tab === 'game') document.getElementById('sidebar-list-title').textContent = 'Mini Games';
       else if (tab === 'admin') document.getElementById('sidebar-list-title').textContent = 'All Server Chats';
       
       renderSidebar();
@@ -1957,6 +1986,7 @@
     
     tabChannels.addEventListener('click', () => setActiveTab('channel'));
     tabDMs.addEventListener('click', () => setActiveTab('dm'));
+    tabGames.addEventListener('click', () => setActiveTab('game'));
     if (document.getElementById('tab-admin')) document.getElementById('tab-admin').addEventListener('click', () => setActiveTab('admin'));
 
     // Messaging Logic
@@ -2108,6 +2138,27 @@
     window.selectChat = function(id) {
       activeChatId = id;
       markChatAsRead(id);
+      
+      // Cleanup previous game listener if switching away
+      if (unsubActiveGame) { unsubActiveGame(); unsubActiveGame = null; activeGameData = null; }
+
+      // If opening a multiplayer session
+      if (id.startsWith('session_')) {
+          const sessionId = id.replace('session_', '');
+          unsubActiveGame = onSnapshot(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), (docSnap) => {
+              if (docSnap.exists()) {
+                  activeGameData = { id: docSnap.id, ...docSnap.data() };
+                  renderMessages(); // Uses activeGameData to render the game
+                  renderHeader();
+              } else {
+                  // Session was deleted or invalid
+                  activeChatId = 'global';
+                  setActiveTab('channel');
+                  selectChat('global');
+              }
+          });
+      }
+
       renderSidebar();
       renderHeader();
       renderMessages();
@@ -2117,6 +2168,25 @@
     function renderSidebar() {
       const chatList = document.getElementById('chat-list');
       
+      if (activeTab === 'game') {
+          chatList.innerHTML = appGames.map(game => {
+              const isActive = activeChatId === game.id;
+              return `
+                  <div onclick="selectChat('${game.id}')" class="flex items-center gap-3.5 p-2.5 rounded-xl cursor-pointer transition-all relative ${isActive ? 'bg-primary/10 border border-primary/20 shadow-sm' : 'hover:bg-white/5 border border-transparent'}">
+                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-inputBg text-textMuted border border-white/5'}">
+                      <i data-lucide="${game.icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex flex-col min-w-0 flex-1 pr-4">
+                      <span class="font-bold text-[13px] tracking-tight truncate ${isActive ? 'text-white' : 'text-slate-300'}">${game.name}</span>
+                      <span class="text-[11px] font-medium truncate text-textMuted">${game.desc}</span>
+                    </div>
+                  </div>
+              `;
+          }).join('');
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+          return;
+      }
+
       const filteredChats = Object.values(allChats).filter(c => {
         if (activeTab === 'admin') return isAdmin(); 
         if (c.type !== activeTab) return false;
@@ -2208,6 +2278,33 @@
     }
 
     function renderHeader() {
+      if (activeChatId.startsWith('game_')) {
+          const game = appGames.find(g => g.id === activeChatId);
+          document.getElementById('header-icon-container').innerHTML = `<i data-lucide="${game?.icon || 'gamepad-2'}" class="text-textMuted w-4 h-4"></i>`;
+          document.getElementById('header-chat-name').textContent = game ? game.name : 'Arcade';
+          document.getElementById('header-lock-icon').classList.add('hidden');
+          document.getElementById('header-users-icon').classList.add('hidden');
+          document.getElementById('header-participants').textContent = 'Game Lobby';
+          document.getElementById('btn-invite-channel').classList.add('hidden');
+          document.getElementById('header-pinned-count').classList.add('hidden');
+          document.getElementById('btn-view-pinned').classList.add('hidden');
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+          return;
+      } else if (activeChatId.startsWith('session_')) {
+          document.getElementById('header-icon-container').innerHTML = `<i data-lucide="radio" class="text-rose-500 w-4 h-4 animate-pulse"></i>`;
+          document.getElementById('header-chat-name').textContent = 'Live Match';
+          document.getElementById('header-lock-icon').classList.add('hidden');
+          document.getElementById('header-users-icon').classList.add('hidden');
+          document.getElementById('header-participants').textContent = activeGameData ? `${activeGameData.gameType.toUpperCase()}` : 'Connecting...';
+          document.getElementById('btn-invite-channel').classList.add('hidden');
+          document.getElementById('header-pinned-count').classList.add('hidden');
+          document.getElementById('btn-view-pinned').classList.add('hidden');
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+          return;
+      }
+
+      document.getElementById('btn-view-pinned').classList.remove('hidden');
+
       const activeChat = allChats[activeChatId] || { id: 'global', name: 'Global Chat', type: 'channel', participants: ['All'], isPrivate: false };
       
       const headerIconContainer = document.getElementById('header-icon-container');
@@ -2356,6 +2453,27 @@
 
     function renderMessages() {
       const container = document.getElementById('messages-container');
+      const gameContainer = document.getElementById('game-container');
+      const inputWrapper = document.getElementById('chat-input-wrapper');
+
+      if (activeChatId.startsWith('game_')) {
+          container.classList.add('hidden');
+          inputWrapper.classList.add('hidden');
+          gameContainer.classList.remove('hidden');
+          renderGameLobby(activeChatId);
+          return;
+      } else if (activeChatId.startsWith('session_')) {
+          container.classList.add('hidden');
+          inputWrapper.classList.add('hidden');
+          gameContainer.classList.remove('hidden');
+          renderNativeGame();
+          return;
+      } else {
+          container.classList.remove('hidden');
+          inputWrapper.classList.remove('hidden');
+          gameContainer.classList.add('hidden');
+      }
+
       const activeChat = allChats[activeChatId] || { id: 'global', name: 'Global Chat', type: 'channel' };
       
       if (!hasChatAccess(activeChat)) {
@@ -2500,6 +2618,27 @@
               const formattedText = msg.isPoll ? '' : formatMessageText(msg.text);
               const attachedImageHTML = msg.imageUrl ? `<img src="${msg.imageUrl}" class="${msg.text ? 'mt-3' : ''} rounded-xl max-w-full h-auto max-h-72 object-contain border border-white/10 shadow-lg bg-black/20" alt="Attached image" loading="lazy" />` : '';
               
+              // Game Invite Rendering
+              let gameInviteHTML = '';
+              if (msg.isGameInvite) {
+                  const gameInfo = appGames.find(g => g.id === `game_${msg.gameType}`) || { name: 'a game', icon: 'gamepad-2' };
+                  gameInviteHTML = `
+                      <div class="mt-3 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl w-full max-w-[260px] shadow-inner relative overflow-hidden group/invite">
+                          <div class="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/10 to-indigo-500/0 opacity-0 group-hover/invite:opacity-100 transition-opacity translate-x-[-100%] hover:animate-[shine_1.5s_infinite]"></div>
+                          <div class="flex items-center gap-3 mb-4 relative z-10">
+                              <div class="w-10 h-10 rounded-xl bg-indigo-600 shadow-lg shadow-indigo-600/30 flex items-center justify-center text-white flex-shrink-0">
+                                  <i data-lucide="${gameInfo.icon}" class="w-5 h-5"></i>
+                              </div>
+                              <div class="flex flex-col min-w-0">
+                                  <span class="text-[10px] text-indigo-300 font-bold uppercase tracking-wider">Game Invite</span>
+                                  <span class="text-[14px] font-semibold text-white truncate">Play ${gameInfo.name}</span>
+                              </div>
+                          </div>
+                          <button onclick="joinGameSession('${msg.sessionId}')" class="relative z-10 w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-[0.98]">Join Match</button>
+                      </div>
+                  `;
+              }
+
               // Poll Rendering
               let pollHTML = '';
               if (msg.isPoll && msg.pollData) {
@@ -2610,7 +2749,7 @@
                         </div>
                       </div>
                       
-                      <div class="w-fit max-w-full min-w-[40px] px-4 py-2.5 text-[14.5px] leading-relaxed text-slate-100 shadow-sm break-words whitespace-pre-wrap text-left ${isMe ? myBubbleBase : theirBubbleBase}">${replyBlockHTML}${formattedText}${pollHTML}${attachedImageHTML}</div>
+                      <div class="w-fit max-w-full min-w-[40px] px-4 py-2.5 text-[14.5px] leading-relaxed text-slate-100 shadow-sm break-words whitespace-pre-wrap text-left ${isMe ? myBubbleBase : theirBubbleBase}">${replyBlockHTML}${formattedText}${pollHTML}${attachedImageHTML}${gameInviteHTML}</div>
                       ${reactionsHTML}
                     </div>
                   </div>
@@ -2654,6 +2793,8 @@
     const modalPresenceGroup = document.getElementById('modal-presence-group');
     const modalPresenceInput = document.getElementById('modal-presence-input');
     const modalStatusTextInput = document.getElementById('modal-status-text-input');
+    const modalGameInviteGroup = document.getElementById('modal-game-invite-group');
+    const modalGameInviteSelect = document.getElementById('modal-game-invite-select');
 
     window.openModal = function(type, targetId = null, extraData = null) {
       modalType = type;
@@ -2669,7 +2810,7 @@
 
       // Hide all dynamic groups initially
       [modalInputGroup, modalInputGroup2, modalColorGroup, modalPfpGroup, modalInviteGroup, 
-       modalPrivateGroup, modalEditMessageGroup, modalPollGroup, modalPresenceGroup].forEach(g => {
+       modalPrivateGroup, modalEditMessageGroup, modalPollGroup, modalPresenceGroup, modalGameInviteGroup].forEach(g => {
           if (g) { g.classList.add('hidden'); g.style.display = ''; }
       });
       
@@ -2677,6 +2818,33 @@
       btnSubmitModal.disabled = true;
 
       switch(type) {
+        case 'share_game':
+          modalTitle.textContent = 'Share Game Invite';
+          modalGameInviteGroup.classList.remove('hidden');
+          modalGameInviteGroup.style.display = 'flex';
+          
+          // Populate the select with valid chats
+          let optionsHTML = '';
+          Object.values(allChats).forEach(chat => {
+              if (isChatParticipant(chat)) {
+                  let displayName = chat.name;
+                  if (chat.type === 'dm') {
+                      const other = (chat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
+                      const prof = allAppUsers.find(u => u.id === other?.toLowerCase());
+                      displayName = prof?.nickname ? prof.nickname : (other || 'Direct Message');
+                  }
+                  optionsHTML += `<option value="${chat.id}">${chat.type === 'channel' ? '#' : '@'} ${displayName}</option>`;
+              }
+          });
+          modalGameInviteSelect.innerHTML = optionsHTML;
+          
+          // Store session info in the button datasets so we can retrieve on submit
+          modalGameInviteSelect.dataset.sessionId = targetId;
+          modalGameInviteSelect.dataset.gameType = extraData;
+          
+          btnSubmitModal.textContent = 'Send Invite';
+          btnSubmitModal.disabled = false;
+          break;
         case 'dm':
           modalInputGroup.classList.remove('hidden');
           modalTitle.textContent = 'Start Direct Message';
@@ -2998,6 +3166,30 @@
             });
             markChatAsRead(activeChatId);
         }
+      }
+      else if (modalType === 'share_game') {
+          const targetChatId = modalGameInviteSelect.value;
+          const sessionId = modalGameInviteSelect.dataset.sessionId;
+          const gameType = modalGameInviteSelect.dataset.gameType;
+
+          if (targetChatId && sessionId) {
+              const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
+                  chatId: targetChatId,
+                  text: '',
+                  isGameInvite: true,
+                  sessionId: sessionId,
+                  gameType: gameType,
+                  sender: userName,
+                  senderNickname: userNickname,
+                  senderEmail: firebaseUser.email || null,
+                  createdAt: Date.now(),
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  senderPhoto: currentPhotoURL 
+              });
+              alert("Game invitation sent!");
+              // Stay in the game view, don't auto-redirect, to allow them to keep waiting
+          }
       }
       else if (modalType === 'edit_profile') {
         const newName = inputVal.replace(/\s+/g, '');
@@ -3902,6 +4094,240 @@
             console.error("Failed to vote", e);
         }
     };
+
+    // --- GAME ENGINE FUNCTIONS ---
+    
+    function renderGameLobby(gameId) {
+        const container = document.getElementById('game-container');
+        const game = appGames.find(g => g.id === gameId);
+        if (!game) return;
+
+        container.innerHTML = `
+            <div class="flex-1 flex flex-col items-center justify-center h-full p-6 text-center bg-pattern">
+                <div class="w-24 h-24 rounded-3xl bg-indigo-500 shadow-[0_0_50px_rgba(99,102,241,0.3)] border border-indigo-400 flex items-center justify-center text-white mb-6">
+                    <i data-lucide="${game.icon}" class="w-12 h-12"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-white tracking-tight mb-2">${game.name}</h2>
+                <p class="text-textMuted max-w-md mx-auto mb-10 leading-relaxed">${game.desc}. Create a live match lobby and invite a friend from your channels or DMs to start playing together in real-time.</p>
+                
+                <button onclick="createGameSession('${game.id.replace('game_', '')}')" class="px-8 py-4 bg-primary hover:bg-primaryHover text-white text-lg font-bold rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex items-center gap-2">
+                    <i data-lucide="plus" class="w-5 h-5"></i> Create Match Lobby
+                </button>
+            </div>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    window.createGameSession = async function(type) {
+        if (!firebaseUser) return;
+        const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        
+        try {
+            await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                gameType: type,
+                creator: userName,
+                opponent: null,
+                status: 'waiting', // waiting, playing, finished
+                board: type === 'tictactoe' ? ['', '', '', '', '', '', '', '', ''] : [],
+                turn: userName,
+                winner: null,
+                createdAt: Date.now()
+            });
+            selectChat(`session_${sessionId}`);
+        } catch(e) {
+            console.error("Failed to create match", e);
+        }
+    }
+
+    window.joinGameSession = async function(sessionId) {
+        if (!firebaseUser) return;
+        // Attempt to auto-join as opponent if waiting
+        try {
+            const gameRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId);
+            const snap = await getDoc(gameRef);
+            if (snap.exists()) {
+                const data = snap.data();
+                if (data.status === 'waiting' && data.creator !== userName && !data.opponent) {
+                    await updateDoc(gameRef, {
+                        opponent: userName,
+                        status: 'playing'
+                    });
+                }
+            }
+        } catch(e) { console.error("Error joining match", e); }
+        
+        // Route them to the view
+        setActiveTab('game');
+        selectChat(`session_${sessionId}`);
+    }
+
+    function renderNativeGame() {
+        const container = document.getElementById('game-container');
+        if (!activeGameData) {
+            container.innerHTML = `<div class="flex h-full items-center justify-center text-textMuted font-medium">Loading match data...</div>`;
+            return;
+        }
+
+        if (activeGameData.gameType === 'tictactoe') {
+            renderTicTacToe();
+        } else {
+            container.innerHTML = `<div class="flex h-full items-center justify-center text-red-400 font-medium">Unknown Game Type</div>`;
+        }
+    }
+
+    // --- TIC TAC TOE ENGINE ---
+    function renderTicTacToe() {
+        const container = document.getElementById('game-container');
+        const session = activeGameData;
+
+        const isCreator = session.creator === userName;
+        const isOpponent = session.opponent === userName;
+        const isPlayer = isCreator || isOpponent;
+        
+        let statusText = '';
+        let headerGlow = 'border-white/5';
+
+        if (session.status === 'waiting') {
+            statusText = '<span class="text-amber-400 font-bold animate-pulse">Waiting for an opponent to join...</span>';
+            headerGlow = 'border-amber-500/30 bg-amber-500/5';
+        } else if (session.status === 'playing') {
+            if (session.turn === userName) {
+                statusText = "<span class='text-emerald-400 font-bold'>Your turn! Make a move.</span>";
+                headerGlow = 'border-emerald-500/30 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.15)]';
+            } else {
+                statusText = `Waiting for <span class="text-white">@${session.turn}</span> to move...`;
+                headerGlow = 'border-indigo-500/20 bg-indigo-500/5';
+            }
+        } else if (session.status === 'finished') {
+            if (session.winner === 'draw') {
+                statusText = "<span class='text-slate-300 font-bold'>Match ended in a Draw!</span>";
+            } else if (session.winner === userName) {
+                statusText = "<span class='text-yellow-400 font-bold text-lg'>🎉 Victory! You won!</span>";
+                headerGlow = 'border-yellow-500/40 bg-yellow-500/10 shadow-[0_0_40px_rgba(234,179,8,0.2)]';
+            } else {
+                statusText = `<span class='text-red-400 font-bold'>Match Over. @${session.winner} won.</span>`;
+                headerGlow = 'border-red-500/20 bg-red-500/5';
+            }
+        }
+
+        let boardHTML = `<div class="grid grid-cols-3 gap-2 w-full max-w-[320px] mx-auto mt-8 mb-10 p-3 bg-black/40 border border-white/5 rounded-3xl shadow-2xl">`;
+        session.board.forEach((cell, idx) => {
+            const canPlay = session.status === 'playing' && session.turn === userName && cell === '' && isPlayer;
+            const cursorClass = canPlay ? 'cursor-pointer hover:bg-white/10 active:scale-95' : 'cursor-default';
+            const colorClass = cell === 'X' ? 'text-rose-500' : 'text-cyan-500';
+            
+            // Draw winning line logic (rough approximation visually)
+            let winClass = '';
+            if (session.status === 'finished' && session.winner !== 'draw' && cell !== '') {
+                // If this cell was part of the winning line, we'd normally highlight it. For simplicity, just make filled cells pop a bit more.
+                winClass = 'opacity-100 drop-shadow-[0_0_15px_currentColor] scale-105';
+            } else if (session.status === 'finished') {
+                winClass = 'opacity-50';
+            }
+
+            boardHTML += `<div onclick="${canPlay ? `playTTTMove('${session.id}', ${idx})` : ''}" class="bg-inputBg border border-white/5 rounded-2xl w-full aspect-square flex items-center justify-center text-6xl font-black transition-all ${cursorClass} ${colorClass} ${winClass}">${cell}</div>`;
+        });
+        boardHTML += `</div>`;
+
+        container.innerHTML = `
+            <div class="flex-1 flex flex-col items-center justify-center p-6 text-center w-full h-full bg-pattern overflow-y-auto">
+                
+                <div class="w-full max-w-lg mx-auto ${headerGlow} border rounded-3xl p-6 transition-all duration-500">
+                    <h2 class="text-2xl font-bold text-white tracking-tight mb-2">Tic Tac Toe</h2>
+                    <p class="text-[15px] mb-8">${statusText}</p>
+                    
+                    <div class="flex items-center justify-center gap-4 sm:gap-8 mb-2">
+                        <div class="flex flex-col items-center flex-1">
+                            <span class="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-2">Player X</span>
+                            <div class="bg-black/50 px-4 py-3 rounded-2xl border ${session.turn === session.creator && session.status === 'playing' ? 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'border-white/5'} transition-all w-full max-w-[140px] truncate font-semibold text-slate-200">
+                                ${session.creator === userName ? 'You' : `@${session.creator}`}
+                            </div>
+                        </div>
+                        
+                        <div class="text-2xl font-black text-white/20 italic">VS</div>
+                        
+                        <div class="flex flex-col items-center flex-1">
+                            <span class="text-[10px] font-bold text-cyan-500 uppercase tracking-widest mb-2">Player O</span>
+                            <div class="bg-black/50 px-4 py-3 rounded-2xl border ${session.opponent && session.turn === session.opponent && session.status === 'playing' ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/5'} transition-all w-full max-w-[140px] truncate font-semibold ${!session.opponent ? 'text-textMuted italic' : 'text-slate-200'}">
+                                ${session.opponent ? (session.opponent === userName ? 'You' : `@${session.opponent}`) : 'Waiting...'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                ${boardHTML}
+
+                <div class="flex flex-wrap items-center justify-center gap-3 w-full max-w-[400px]">
+                    ${session.status === 'waiting' && isCreator ? `<button onclick="openModal('share_game', '${session.id}', 'tictactoe')" class="flex-1 min-w-[140px] py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="share-2" class="w-4 h-4"></i> Invite Friend</button>` : ''}
+                    
+                    ${session.status === 'finished' && isPlayer ? `<button onclick="resetTTTGame('${session.id}')" class="flex-1 min-w-[140px] py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Play Again</button>` : ''}
+                    
+                    <button onclick="selectChat('game_tictactoe')" class="flex-1 min-w-[140px] py-3.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2">Leave Match</button>
+                </div>
+                
+            </div>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    window.playTTTMove = async function(sessionId, index) {
+        if (!activeGameData || activeGameData.id !== sessionId || activeGameData.status !== 'playing') return;
+        if (activeGameData.turn !== userName || activeGameData.board[index] !== '') return;
+
+        let newBoard = [...activeGameData.board];
+        const isCreator = userName === activeGameData.creator;
+        newBoard[index] = isCreator ? 'X' : 'O';
+
+        // Check win
+        const lines = [
+            [0,1,2], [3,4,5], [6,7,8], // rows
+            [0,3,6], [1,4,7], [2,5,8], // cols
+            [0,4,8], [2,4,6]           // diagonals
+        ];
+        
+        let winner = null;
+        for (let line of lines) {
+            const [a,b,c] = line;
+            if (newBoard[a] && newBoard[a] === newBoard[b] && newBoard[a] === newBoard[c]) {
+                winner = userName;
+                break;
+            }
+        }
+
+        let nextTurn = activeGameData.turn;
+        let newStatus = 'playing';
+
+        if (winner) {
+            newStatus = 'finished';
+        } else if (!newBoard.includes('')) {
+            newStatus = 'finished';
+            winner = 'draw';
+        } else {
+            nextTurn = isCreator ? activeGameData.opponent : activeGameData.creator;
+        }
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                board: newBoard,
+                turn: nextTurn,
+                status: newStatus,
+                winner: winner
+            });
+        } catch(e) { console.error("Error making move", e); }
+    }
+
+    window.resetTTTGame = async function(sessionId) {
+        if (!activeGameData || activeGameData.id !== sessionId) return;
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                board: ['', '', '', '', '', '', '', '', ''],
+                turn: activeGameData.creator, // Creator goes first on reset
+                status: 'playing',
+                winner: null
+            });
+        } catch(e) { console.error("Error resetting match", e); }
+    }
+
 
     // --- PWA IMPLEMENTATION ---
     ;(function setupPWA() {
