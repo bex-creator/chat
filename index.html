@@ -1022,7 +1022,8 @@
 
     // Custom Games List
     let appGames = [
-        { id: 'game_tictactoe', name: 'Tic Tac Toe', desc: 'Classic 2-player multiplayer', icon: 'grid' }
+        { id: 'game_tictactoe', name: 'Tic Tac Toe', desc: 'Classic 2-player multiplayer', icon: 'grid', isMultiplayer: true },
+        { id: 'game_jhk', name: 'JHK Game', url: 'https://bex-creator.github.io/jhk/', desc: 'Single-player web game', icon: 'gamepad-2' }
     ];
     
     // Modal State
@@ -2379,7 +2380,7 @@
           document.getElementById('header-chat-name').textContent = game ? game.name : 'Arcade';
           document.getElementById('header-lock-icon').classList.add('hidden');
           document.getElementById('header-users-icon').classList.add('hidden');
-          document.getElementById('header-participants').textContent = 'Game Lobby';
+          document.getElementById('header-participants').textContent = (game && game.url) ? 'Single Player' : 'Game Lobby';
           document.getElementById('btn-invite-channel').classList.add('hidden');
           document.getElementById('header-pinned-count').classList.add('hidden');
           document.getElementById('btn-view-pinned').classList.add('hidden');
@@ -2572,7 +2573,13 @@
           container.classList.add('hidden');
           inputWrapper.classList.add('hidden');
           gameContainer.classList.remove('hidden');
-          renderGameLobby(activeChatId);
+          
+          const game = appGames.find(g => g.id === activeChatId);
+          if (game && game.url) {
+              gameContainer.innerHTML = `<iframe class="w-full h-full border-none bg-mainBg" src="${game.url}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>`;
+          } else {
+              renderGameLobby(activeChatId);
+          }
           return;
       } else if (activeChatId.startsWith('session_')) {
           container.classList.add('hidden');
