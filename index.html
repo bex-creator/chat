@@ -421,7 +421,10 @@
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
+          <button id="btn-chat-bg" class="hidden p-2 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/5" title="Set Chat Background">
+            <i data-lucide="image" class="w-5 h-5"></i>
+          </button>
           <button id="btn-view-pinned" class="p-2 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/5 relative" title="Pinned Messages">
             <i data-lucide="pin" class="w-5 h-5"></i>
             <span id="header-pinned-count" class="absolute -top-1 -right-1 bg-primary text-white text-[9px] font-bold px-1.5 rounded-full shadow-sm hidden"></span>
@@ -432,7 +435,11 @@
         </div>
       </header>
 
-      <div id="messages-container" class="flex-1 overflow-y-auto p-6 flex flex-col custom-scrollbar">
+      <!-- Chat Background Layer -->
+      <div id="chat-custom-bg-element" class="absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-500 opacity-0 hidden"></div>
+      <div id="chat-custom-bg-overlay" class="absolute inset-0 z-0 pointer-events-none bg-mainBg/80 transition-opacity duration-500 opacity-0 hidden"></div>
+
+      <div id="messages-container" class="flex-1 overflow-y-auto p-6 flex flex-col custom-scrollbar relative z-10">
         <!-- Messages injected here -->
       </div>
 
@@ -552,6 +559,23 @@
         <div id="modal-edit-message-group" class="hidden flex-col gap-2">
           <label class="text-sm text-slate-300 font-semibold ml-1">Edit Message</label>
           <textarea id="modal-edit-textarea" class="w-full bg-inputBg border border-white/5 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 rounded-xl px-4 py-3.5 text-slate-100 outline-none transition-all resize-none h-32"></textarea>
+        </div>
+
+        <!-- Chat Background Group -->
+        <div id="modal-chat-bg-group" class="hidden flex-col gap-3">
+          <label class="text-sm text-slate-300 font-semibold ml-1">Chat Background Image</label>
+          <div class="relative group cursor-pointer w-full h-32 rounded-2xl overflow-hidden border-2 border-dashed border-white/20 hover:border-primary/50 transition-colors flex items-center justify-center bg-black/20">
+            <input type="file" id="modal-chat-bg-input" accept="image/*" class="hidden" />
+            <label for="modal-chat-bg-input" class="cursor-pointer absolute inset-0 flex flex-col items-center justify-center z-10">
+               <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-400 group-hover:text-primary transition-colors mb-2"></i>
+               <span class="text-xs text-slate-400 font-medium group-hover:text-primary transition-colors">Click to upload image</span>
+            </label>
+            <img id="modal-chat-bg-preview" src="" class="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity z-0" />
+          </div>
+          <div class="flex items-center justify-between mt-1">
+             <span class="text-xs text-textMuted">Max 800px. High-res images will be compressed.</span>
+             <button type="button" id="btn-clear-chat-bg" class="text-xs text-red-400 hover:text-red-300 transition-colors bg-red-400/10 px-2 py-1 rounded">Clear Background</button>
+          </div>
         </div>
 
         <!-- Poll Creation Group -->
@@ -1009,6 +1033,12 @@
     let activeReactionMsgId = null;
     let activeEditMsgId = null;
 
+    const modalChatBgGroup = document.getElementById('modal-chat-bg-group');
+    const modalChatBgInput = document.getElementById('modal-chat-bg-input');
+    const modalChatBgPreview = document.getElementById('modal-chat-bg-preview');
+    const btnClearChatBg = document.getElementById('btn-clear-chat-bg');
+    let pendingChatBgURL = null;
+
     // Subscriptions
     let unsubChats, unsubMsgs, unsubUsers, unsubReceipts;
 
@@ -1425,6 +1455,25 @@
       });
     });
 
+    modalChatBgInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        processChatImageFile(file, (base64Str) => {
+          pendingChatBgURL = base64Str;
+          modalChatBgPreview.src = base64Str;
+          modalChatBgPreview.classList.remove('opacity-0');
+          checkModalSubmitDisabled(); 
+        });
+      }
+    });
+
+    btnClearChatBg.addEventListener('click', () => {
+        pendingChatBgURL = 'clear';
+        modalChatBgPreview.src = '';
+        modalChatBgPreview.classList.add('opacity-0');
+        checkModalSubmitDisabled();
+    });
+
     // 2. FIRESTORE LISTENERS
     function setupApp() {
       showScreen('app');
@@ -1490,7 +1539,9 @@
         allChats = fetchedChats;
         
         if (activeChatId !== 'global' && (!allChats[activeChatId] || !hasChatAccess(allChats[activeChatId]))) {
-          activeChatId = 'global';
+          if (!activeChatId.startsWith('game_') && !activeChatId.startsWith('session_')) {
+              activeChatId = 'global';
+          }
         }
         
         renderSidebar();
@@ -1947,6 +1998,10 @@
       closeSidebarMobile();
     });
 
+    document.getElementById('btn-chat-bg').addEventListener('click', () => {
+      openModal('chat_bg');
+    });
+
     // Tabs
     const tabChannels = document.getElementById('tab-channels');
     const tabDMs = document.getElementById('tab-dms');
@@ -2277,8 +2332,48 @@
       if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
+    function updateChatBackground(activeChat) {
+        const bgElement = document.getElementById('chat-custom-bg-element');
+        const bgOverlay = document.getElementById('chat-custom-bg-overlay');
+        
+        if (activeChat && activeChat.chatBg) {
+            if (bgElement.style.backgroundImage !== `url("${activeChat.chatBg}")`) {
+                bgElement.style.backgroundImage = `url(${activeChat.chatBg})`;
+            }
+            bgElement.classList.remove('hidden');
+            bgOverlay.classList.remove('hidden');
+            
+            // Allow display block to apply before animating opacity
+            setTimeout(() => {
+                bgElement.classList.remove('opacity-0');
+                bgElement.classList.add('opacity-40');
+                bgOverlay.classList.remove('opacity-0');
+                bgOverlay.classList.add('opacity-100');
+            }, 50);
+        } else {
+            bgElement.classList.remove('opacity-40');
+            bgElement.classList.add('opacity-0');
+            bgOverlay.classList.remove('opacity-100');
+            bgOverlay.classList.add('opacity-0');
+            
+            // Hide entirely after transition
+            setTimeout(() => {
+                if (!allChats[activeChatId]?.chatBg) {
+                    bgElement.classList.add('hidden');
+                    bgOverlay.classList.add('hidden');
+                    bgElement.style.backgroundImage = 'none';
+                }
+            }, 500); 
+        }
+    }
+
     function renderHeader() {
+      const btnChatBg = document.getElementById('btn-chat-bg');
+
       if (activeChatId.startsWith('game_')) {
+          updateChatBackground(null);
+          btnChatBg.classList.add('hidden');
+
           const game = appGames.find(g => g.id === activeChatId);
           document.getElementById('header-icon-container').innerHTML = `<i data-lucide="${game?.icon || 'gamepad-2'}" class="text-textMuted w-4 h-4"></i>`;
           document.getElementById('header-chat-name').textContent = game ? game.name : 'Arcade';
@@ -2291,6 +2386,9 @@
           if (typeof lucide !== 'undefined') lucide.createIcons();
           return;
       } else if (activeChatId.startsWith('session_')) {
+          updateChatBackground(null);
+          btnChatBg.classList.add('hidden');
+
           document.getElementById('header-icon-container').innerHTML = `<i data-lucide="radio" class="text-rose-500 w-4 h-4 animate-pulse"></i>`;
           document.getElementById('header-chat-name').textContent = 'Live Match';
           document.getElementById('header-lock-icon').classList.add('hidden');
@@ -2307,6 +2405,20 @@
 
       const activeChat = allChats[activeChatId] || { id: 'global', name: 'Global Chat', type: 'channel', participants: ['All'], isPrivate: false };
       
+      updateChatBackground(activeChat);
+
+      if (activeChat.type === 'channel' || activeChat.type === 'dm') {
+          const isCreator = activeChat.creator === userName;
+          const isDM = activeChat.type === 'dm';
+          if (isAtLeastMod() || isCreator || isDM) {
+              btnChatBg.classList.remove('hidden');
+          } else {
+              btnChatBg.classList.add('hidden');
+          }
+      } else {
+          btnChatBg.classList.add('hidden');
+      }
+
       const headerIconContainer = document.getElementById('header-icon-container');
       let displayName = activeChat.name;
 
@@ -2810,7 +2922,7 @@
 
       // Hide all dynamic groups initially
       [modalInputGroup, modalInputGroup2, modalColorGroup, modalPfpGroup, modalInviteGroup, 
-       modalPrivateGroup, modalEditMessageGroup, modalPollGroup, modalPresenceGroup, modalGameInviteGroup].forEach(g => {
+       modalPrivateGroup, modalEditMessageGroup, modalPollGroup, modalPresenceGroup, modalGameInviteGroup, modalChatBgGroup].forEach(g => {
           if (g) { g.classList.add('hidden'); g.style.display = ''; }
       });
       
@@ -2889,6 +3001,22 @@
           document.getElementById('modal-poll-opt4').value = '';
           btnSubmitModal.textContent = 'Send Poll';
           break;
+        case 'chat_bg':
+          modalTitle.textContent = 'Chat Background';
+          modalChatBgGroup.classList.remove('hidden');
+          modalChatBgGroup.style.display = 'flex';
+          const currentBg = allChats[activeChatId]?.chatBg;
+          if (currentBg) {
+              modalChatBgPreview.src = currentBg;
+              modalChatBgPreview.classList.remove('opacity-0');
+          } else {
+              modalChatBgPreview.src = '';
+              modalChatBgPreview.classList.add('opacity-0');
+          }
+          pendingChatBgURL = null;
+          btnSubmitModal.textContent = 'Save Background';
+          btnSubmitModal.disabled = true;
+          break;
         case 'edit_profile':
           modalTitle.textContent = 'Edit Profile';
           modalPfpGroup.classList.remove('hidden');
@@ -2935,13 +3063,16 @@
       if (type === 'edit_message') modalEditTextarea.focus();
       else if (type === 'poll') document.getElementById('modal-poll-question').focus();
       else if (type === 'invite_to_channel') modalInviteInput.focus();
-      else if (type !== 'edit_profile' || (type === 'edit_profile' && !btnSubmitModal.classList.contains('hidden'))) modalInput.focus();
+      else if (type !== 'edit_profile' && type !== 'chat_bg' || (type === 'edit_profile' && !btnSubmitModal.classList.contains('hidden'))) {
+          if (modalInput) modalInput.focus();
+      }
     };
 
     window.closeModal = function() {
       modalContainer.classList.add('hidden');
       modalType = null;
       activeEditMsgId = null;
+      pendingChatBgURL = null;
     };
 
     function showError(msg) {
@@ -2965,6 +3096,8 @@
         const o1 = document.getElementById('modal-poll-opt1').value.trim();
         const o2 = document.getElementById('modal-poll-opt2').value.trim();
         btnSubmitModal.disabled = !(q && o1 && o2);
+      } else if (modalType === 'chat_bg') {
+        btnSubmitModal.disabled = !pendingChatBgURL;
       } else if (modalType === 'edit_profile') {
         const newUname = modalInput.value.trim();
         const newNick = modalInput2.value.trim();
@@ -3191,6 +3324,22 @@
               // Stay in the game view, don't auto-redirect, to allow them to keep waiting
           }
       }
+      else if (modalType === 'chat_bg') {
+          btnSubmitModal.disabled = true;
+          btnSubmitModal.textContent = 'Saving...';
+          try {
+              const updateVal = pendingChatBgURL === 'clear' ? null : pendingChatBgURL;
+              await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
+                  chatBg: updateVal
+              });
+              closeModal();
+          } catch(e) {
+              console.error(e);
+              showError("Failed to update background.");
+              btnSubmitModal.disabled = false;
+              btnSubmitModal.textContent = 'Save Background';
+          }
+      }
       else if (modalType === 'edit_profile') {
         const newName = inputVal.replace(/\s+/g, '');
         const newNick = modalInput2.value.trim();
@@ -3307,7 +3456,9 @@
            return;
         }
       }
-      closeModal();
+      if (modalType !== 'chat_bg') {
+          closeModal();
+      }
     });
 
     // 6. ADMIN PANEL LOGIC
@@ -4065,7 +4216,7 @@
                 alert(`@${username} was wiped via soft-delete (hard delete was restricted by database rules).`);
             } catch(fallbackErr) {
                 console.error("Soft wipe failed", fallbackErr);
-                alert(`Failed to remove user. Error: ${e.message}`);
+                alert(`Failed to remove user. Error: ${fallbackErr.message}`);
             }
         }
     };
@@ -4094,240 +4245,6 @@
             console.error("Failed to vote", e);
         }
     };
-
-    // --- GAME ENGINE FUNCTIONS ---
-    
-    function renderGameLobby(gameId) {
-        const container = document.getElementById('game-container');
-        const game = appGames.find(g => g.id === gameId);
-        if (!game) return;
-
-        container.innerHTML = `
-            <div class="flex-1 flex flex-col items-center justify-center h-full p-6 text-center bg-pattern">
-                <div class="w-24 h-24 rounded-3xl bg-indigo-500 shadow-[0_0_50px_rgba(99,102,241,0.3)] border border-indigo-400 flex items-center justify-center text-white mb-6">
-                    <i data-lucide="${game.icon}" class="w-12 h-12"></i>
-                </div>
-                <h2 class="text-3xl font-bold text-white tracking-tight mb-2">${game.name}</h2>
-                <p class="text-textMuted max-w-md mx-auto mb-10 leading-relaxed">${game.desc}. Create a live match lobby and invite a friend from your channels or DMs to start playing together in real-time.</p>
-                
-                <button onclick="createGameSession('${game.id.replace('game_', '')}')" class="px-8 py-4 bg-primary hover:bg-primaryHover text-white text-lg font-bold rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex items-center gap-2">
-                    <i data-lucide="plus" class="w-5 h-5"></i> Create Match Lobby
-                </button>
-            </div>
-        `;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    window.createGameSession = async function(type) {
-        if (!firebaseUser) return;
-        const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        
-        try {
-            await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
-                gameType: type,
-                creator: userName,
-                opponent: null,
-                status: 'waiting', // waiting, playing, finished
-                board: type === 'tictactoe' ? ['', '', '', '', '', '', '', '', ''] : [],
-                turn: userName,
-                winner: null,
-                createdAt: Date.now()
-            });
-            selectChat(`session_${sessionId}`);
-        } catch(e) {
-            console.error("Failed to create match", e);
-        }
-    }
-
-    window.joinGameSession = async function(sessionId) {
-        if (!firebaseUser) return;
-        // Attempt to auto-join as opponent if waiting
-        try {
-            const gameRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId);
-            const snap = await getDoc(gameRef);
-            if (snap.exists()) {
-                const data = snap.data();
-                if (data.status === 'waiting' && data.creator !== userName && !data.opponent) {
-                    await updateDoc(gameRef, {
-                        opponent: userName,
-                        status: 'playing'
-                    });
-                }
-            }
-        } catch(e) { console.error("Error joining match", e); }
-        
-        // Route them to the view
-        setActiveTab('game');
-        selectChat(`session_${sessionId}`);
-    }
-
-    function renderNativeGame() {
-        const container = document.getElementById('game-container');
-        if (!activeGameData) {
-            container.innerHTML = `<div class="flex h-full items-center justify-center text-textMuted font-medium">Loading match data...</div>`;
-            return;
-        }
-
-        if (activeGameData.gameType === 'tictactoe') {
-            renderTicTacToe();
-        } else {
-            container.innerHTML = `<div class="flex h-full items-center justify-center text-red-400 font-medium">Unknown Game Type</div>`;
-        }
-    }
-
-    // --- TIC TAC TOE ENGINE ---
-    function renderTicTacToe() {
-        const container = document.getElementById('game-container');
-        const session = activeGameData;
-
-        const isCreator = session.creator === userName;
-        const isOpponent = session.opponent === userName;
-        const isPlayer = isCreator || isOpponent;
-        
-        let statusText = '';
-        let headerGlow = 'border-white/5';
-
-        if (session.status === 'waiting') {
-            statusText = '<span class="text-amber-400 font-bold animate-pulse">Waiting for an opponent to join...</span>';
-            headerGlow = 'border-amber-500/30 bg-amber-500/5';
-        } else if (session.status === 'playing') {
-            if (session.turn === userName) {
-                statusText = "<span class='text-emerald-400 font-bold'>Your turn! Make a move.</span>";
-                headerGlow = 'border-emerald-500/30 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.15)]';
-            } else {
-                statusText = `Waiting for <span class="text-white">@${session.turn}</span> to move...`;
-                headerGlow = 'border-indigo-500/20 bg-indigo-500/5';
-            }
-        } else if (session.status === 'finished') {
-            if (session.winner === 'draw') {
-                statusText = "<span class='text-slate-300 font-bold'>Match ended in a Draw!</span>";
-            } else if (session.winner === userName) {
-                statusText = "<span class='text-yellow-400 font-bold text-lg'>🎉 Victory! You won!</span>";
-                headerGlow = 'border-yellow-500/40 bg-yellow-500/10 shadow-[0_0_40px_rgba(234,179,8,0.2)]';
-            } else {
-                statusText = `<span class='text-red-400 font-bold'>Match Over. @${session.winner} won.</span>`;
-                headerGlow = 'border-red-500/20 bg-red-500/5';
-            }
-        }
-
-        let boardHTML = `<div class="grid grid-cols-3 gap-2 w-full max-w-[320px] mx-auto mt-8 mb-10 p-3 bg-black/40 border border-white/5 rounded-3xl shadow-2xl">`;
-        session.board.forEach((cell, idx) => {
-            const canPlay = session.status === 'playing' && session.turn === userName && cell === '' && isPlayer;
-            const cursorClass = canPlay ? 'cursor-pointer hover:bg-white/10 active:scale-95' : 'cursor-default';
-            const colorClass = cell === 'X' ? 'text-rose-500' : 'text-cyan-500';
-            
-            // Draw winning line logic (rough approximation visually)
-            let winClass = '';
-            if (session.status === 'finished' && session.winner !== 'draw' && cell !== '') {
-                // If this cell was part of the winning line, we'd normally highlight it. For simplicity, just make filled cells pop a bit more.
-                winClass = 'opacity-100 drop-shadow-[0_0_15px_currentColor] scale-105';
-            } else if (session.status === 'finished') {
-                winClass = 'opacity-50';
-            }
-
-            boardHTML += `<div onclick="${canPlay ? `playTTTMove('${session.id}', ${idx})` : ''}" class="bg-inputBg border border-white/5 rounded-2xl w-full aspect-square flex items-center justify-center text-6xl font-black transition-all ${cursorClass} ${colorClass} ${winClass}">${cell}</div>`;
-        });
-        boardHTML += `</div>`;
-
-        container.innerHTML = `
-            <div class="flex-1 flex flex-col items-center justify-center p-6 text-center w-full h-full bg-pattern overflow-y-auto">
-                
-                <div class="w-full max-w-lg mx-auto ${headerGlow} border rounded-3xl p-6 transition-all duration-500">
-                    <h2 class="text-2xl font-bold text-white tracking-tight mb-2">Tic Tac Toe</h2>
-                    <p class="text-[15px] mb-8">${statusText}</p>
-                    
-                    <div class="flex items-center justify-center gap-4 sm:gap-8 mb-2">
-                        <div class="flex flex-col items-center flex-1">
-                            <span class="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-2">Player X</span>
-                            <div class="bg-black/50 px-4 py-3 rounded-2xl border ${session.turn === session.creator && session.status === 'playing' ? 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'border-white/5'} transition-all w-full max-w-[140px] truncate font-semibold text-slate-200">
-                                ${session.creator === userName ? 'You' : `@${session.creator}`}
-                            </div>
-                        </div>
-                        
-                        <div class="text-2xl font-black text-white/20 italic">VS</div>
-                        
-                        <div class="flex flex-col items-center flex-1">
-                            <span class="text-[10px] font-bold text-cyan-500 uppercase tracking-widest mb-2">Player O</span>
-                            <div class="bg-black/50 px-4 py-3 rounded-2xl border ${session.opponent && session.turn === session.opponent && session.status === 'playing' ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/5'} transition-all w-full max-w-[140px] truncate font-semibold ${!session.opponent ? 'text-textMuted italic' : 'text-slate-200'}">
-                                ${session.opponent ? (session.opponent === userName ? 'You' : `@${session.opponent}`) : 'Waiting...'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                ${boardHTML}
-
-                <div class="flex flex-wrap items-center justify-center gap-3 w-full max-w-[400px]">
-                    ${session.status === 'waiting' && isCreator ? `<button onclick="openModal('share_game', '${session.id}', 'tictactoe')" class="flex-1 min-w-[140px] py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="share-2" class="w-4 h-4"></i> Invite Friend</button>` : ''}
-                    
-                    ${session.status === 'finished' && isPlayer ? `<button onclick="resetTTTGame('${session.id}')" class="flex-1 min-w-[140px] py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Play Again</button>` : ''}
-                    
-                    <button onclick="selectChat('game_tictactoe')" class="flex-1 min-w-[140px] py-3.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2">Leave Match</button>
-                </div>
-                
-            </div>
-        `;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    window.playTTTMove = async function(sessionId, index) {
-        if (!activeGameData || activeGameData.id !== sessionId || activeGameData.status !== 'playing') return;
-        if (activeGameData.turn !== userName || activeGameData.board[index] !== '') return;
-
-        let newBoard = [...activeGameData.board];
-        const isCreator = userName === activeGameData.creator;
-        newBoard[index] = isCreator ? 'X' : 'O';
-
-        // Check win
-        const lines = [
-            [0,1,2], [3,4,5], [6,7,8], // rows
-            [0,3,6], [1,4,7], [2,5,8], // cols
-            [0,4,8], [2,4,6]           // diagonals
-        ];
-        
-        let winner = null;
-        for (let line of lines) {
-            const [a,b,c] = line;
-            if (newBoard[a] && newBoard[a] === newBoard[b] && newBoard[a] === newBoard[c]) {
-                winner = userName;
-                break;
-            }
-        }
-
-        let nextTurn = activeGameData.turn;
-        let newStatus = 'playing';
-
-        if (winner) {
-            newStatus = 'finished';
-        } else if (!newBoard.includes('')) {
-            newStatus = 'finished';
-            winner = 'draw';
-        } else {
-            nextTurn = isCreator ? activeGameData.opponent : activeGameData.creator;
-        }
-
-        try {
-            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
-                board: newBoard,
-                turn: nextTurn,
-                status: newStatus,
-                winner: winner
-            });
-        } catch(e) { console.error("Error making move", e); }
-    }
-
-    window.resetTTTGame = async function(sessionId) {
-        if (!activeGameData || activeGameData.id !== sessionId) return;
-        try {
-            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
-                board: ['', '', '', '', '', '', '', '', ''],
-                turn: activeGameData.creator, // Creator goes first on reset
-                status: 'playing',
-                winner: null
-            });
-        } catch(e) { console.error("Error resetting match", e); }
-    }
-
 
     // --- PWA IMPLEMENTATION ---
     ;(function setupPWA() {
