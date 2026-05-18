@@ -950,6 +950,7 @@
     const DEV_EMAIL = 'bexlebeau30@students.cumberlandschools.org';
 
     // Application State
+    const appLoadTime = Date.now(); // Used to prevent offline-reconnect notification spam
     let firebaseUser = null;
     let userName = '';
     let userNickname = '';
@@ -1173,15 +1174,6 @@
       document.getElementById('banned-title').textContent = expiryText.includes('Suspended') ? "Account Suspended" : "Access Denied";
     }
 
-    // Browser & In-App Notification Support
-    function requestNotificationPermission() {
-      if (!("Notification" in window)) {
-        console.warn("This browser does not support desktop notification");
-      } else if (Notification.permission !== "denied" && Notification.permission !== "granted") {
-        Notification.requestPermission();
-      }
-    }
-
     function getChatDisplayName(chat) {
         if (!chat) return "Chat Space";
         if (chat.type === 'channel') return chat.name;
@@ -1195,42 +1187,47 @@
     }
 
     async function sendBrowserNotification(msg, chat) {
-      if (!appSettings.notifications) return; 
-      if (!("Notification" in window) || Notification.permission !== "granted") return;
-
       const chatName = getChatDisplayName(chat);
       const senderProfile = allAppUsers.find(u => u.id === msg.sender.toLowerCase());
       const displaySender = senderProfile?.nickname || msg.senderNickname || msg.sender;
       const notificationIcon = senderProfile?.photoURL || msg.senderPhoto || 'https://via.placeholder.com/128';
 
+      let msgPreview = msg.text || '';
+      if (!msgPreview) {
+          if (msg.imageUrl) msgPreview = '🖼️ Sent an image';
+          else if (msg.isPoll) msgPreview = '📊 Sent a poll';
+      }
+
       const title = `New message in ${chatName}`;
       const options = {
-        body: `${displaySender}: ${msg.text}`,
+        body: `${displaySender}: ${msgPreview}`,
         icon: notificationIcon,
         tag: `chat-${chat ? chat.id : 'global'}`, // Groups multiple notifications together
         data: { url: window.location.origin } // Tells the service worker where to redirect on tap
       };
 
-      // Mobile / PWA Requirement: Route through Service Worker
-      if ('serviceWorker' in navigator) {
-          try {
-              const reg = await navigator.serviceWorker.ready;
+      try {
+          // Mobile / PWA Requirement: Route through Service Worker if active
+          if ('serviceWorker' in navigator) {
+              const reg = await navigator.serviceWorker.getRegistration();
               if (reg && reg.showNotification) {
                   await reg.showNotification(title, options);
-                  return;
+                  return true;
               }
-          } catch(e) {
-              console.log("SW notification failed, falling back.", e);
           }
-      }
 
-      // Desktop Fallback
-      const notification = new Notification(title, options);
-      notification.onclick = function() {
-        window.focus();
-        if (chat) selectChat(chat.id);
-        this.close();
-      };
+          // Desktop Fallback
+          const notification = new Notification(title, options);
+          notification.onclick = function() {
+            window.focus();
+            if (chat) selectChat(chat.id);
+            this.close();
+          };
+          return true;
+      } catch (e) {
+          console.log("Desktop notification failed", e);
+          return false;
+      }
     }
 
     function showInAppNotification(msg, chat) {
@@ -1242,6 +1239,17 @@
         const senderProfile = allAppUsers.find(u => u.id === msg.sender.toLowerCase());
         const displaySender = senderProfile?.nickname || msg.senderNickname || msg.sender;
         const displayPhoto = senderProfile?.photoURL || msg.senderPhoto || 'https://via.placeholder.com/150';
+
+        let msgPreview = msg.text || '';
+        if (!msgPreview) {
+            if (msg.imageUrl) msgPreview = '🖼️ Sent an image';
+            else if (msg.isPoll) msgPreview = '📊 Sent a poll';
+        }
+
+        // Ensure max 3 toasts to prevent overlapping accumulation races
+        while (container.children.length >= 3) {
+             container.removeChild(container.firstChild);
+        }
 
         const toast = document.createElement('div');
         toast.className = 'bg-sidebarBg border border-white/5 shadow-2xl rounded-2xl p-4 flex gap-3.5 cursor-pointer hover:bg-white/5 transition-colors pointer-events-auto animate-toast-in';
@@ -1255,7 +1263,7 @@
                     <span class="font-bold text-slate-100 text-sm truncate tracking-tight">${displaySender}</span>
                     <span class="text-[11px] text-textMuted truncate font-medium">${contextString}</span>
                 </div>
-                <p class="text-slate-300 text-sm truncate mt-0.5">${msg.text}</p>
+                <p class="text-slate-300 text-sm truncate mt-0.5">${msgPreview}</p>
             </div>
         `;
 
@@ -1275,13 +1283,6 @@
                 }, 400); 
             }
         }, 4500);
-
-        if (container.children.length >= 3) {
-             const oldest = container.firstChild;
-             oldest.classList.remove('animate-toast-in');
-             oldest.classList.add('animate-toast-out');
-             setTimeout(() => { if (oldest.parentElement) oldest.remove(); }, 400);
-        }
 
         container.appendChild(toast);
     }
@@ -1446,8 +1447,6 @@
         btnPanel.classList.add('hidden');
       }
 
-      if (appSettings.notifications) requestNotificationPermission();
-
       unsubReceipts = onSnapshot(doc(db, 'artifacts', APP_NAMESPACE, 'users', firebaseUser.uid, 'profile', 'readReceipts'), (docSnap) => {
         readReceipts = docSnap.data() || {};
         renderSidebar(); 
@@ -1475,18 +1474,24 @@
 
       unsubMsgs = onSnapshot(collection(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages'), (snapshot) => {
         if (hasInitialMessagesLoaded) {
-          snapshot.docChanges().forEach(change => {
+          snapshot.docChanges().forEach(async change => {
             if (change.type === 'added') {
               const msg = { id: change.doc.id, ...change.doc.data() };
               
-              if (msg.sender.toLowerCase() !== userName.toLowerCase()) {
+              // Only notify if message is new (prevents offline-reconnect flood)
+              // and if message isn't sent by us
+              if (msg.createdAt > appLoadTime && msg.sender.toLowerCase() !== userName.toLowerCase()) {
                 const chat = allChats[msg.chatId] || { id: 'global', name: 'Global Chat', type: 'channel' };
                 if (isChatParticipant(chat)) {
-                  if (!isTabVisible) {
-                    sendBrowserNotification(msg, chat);
-                  } 
-                  else if (msg.chatId !== activeChatId) {
-                    showInAppNotification(msg, chat);
+                  let desktopSent = false;
+
+                  if (!isTabVisible && appSettings.notifications && "Notification" in window && Notification.permission === "granted") {
+                      desktopSent = await sendBrowserNotification(msg, chat);
+                  }
+                  
+                  // Graceful fallback to toast if desktop push wasn't applicable, wasn't allowed, or failed
+                  if (!desktopSent && (msg.chatId !== activeChatId || !isTabVisible)) {
+                      showInAppNotification(msg, chat);
                   }
                 }
               }
@@ -1692,7 +1697,7 @@
         
         try {
             await sendPasswordResetEmail(auth, email);
-            authError.textContent = "Password reset email sent! Check your inbox. (may be in spam)";
+            authError.textContent = "Password reset email sent! Check your inbox.";
             authError.className = 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl font-medium text-center';
         } catch (error) {
             authError.textContent = "Failed to send reset email. Ensure the email is valid.";
@@ -1779,9 +1784,38 @@
 
     document.getElementById('toggle-notifications').addEventListener('change', (e) => {
       const isEnabled = e.target.checked;
-      appSettings.notifications = isEnabled;
-      localStorage.setItem('chat_notifications', isEnabled);
-      if (isEnabled) requestNotificationPermission();
+      
+      if (isEnabled) {
+          if ("Notification" in window) {
+              if (Notification.permission === "granted") {
+                  appSettings.notifications = true;
+                  localStorage.setItem('chat_notifications', true);
+              } else if (Notification.permission !== "denied") {
+                  Notification.requestPermission().then(perm => {
+                      if (perm === 'granted') {
+                          appSettings.notifications = true;
+                          localStorage.setItem('chat_notifications', true);
+                      } else {
+                          e.target.checked = false;
+                          appSettings.notifications = false;
+                          localStorage.setItem('chat_notifications', false);
+                          alert("Desktop notifications were dismissed or denied.");
+                      }
+                  });
+              } else {
+                  e.target.checked = false;
+                  appSettings.notifications = false;
+                  localStorage.setItem('chat_notifications', false);
+                  alert("Notifications are blocked in your browser settings. Please enable them to use this feature.");
+              }
+          } else {
+              e.target.checked = false;
+              alert("Your browser does not support desktop notifications.");
+          }
+      } else {
+          appSettings.notifications = false;
+          localStorage.setItem('chat_notifications', false);
+      }
     });
 
     document.getElementById('btn-settings-logout').addEventListener('click', () => signOut(auth));
