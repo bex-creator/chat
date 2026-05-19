@@ -486,8 +486,24 @@
             </div>
         </div>
 
-        <form id="form-send-message" class="max-w-5xl mx-auto flex items-end gap-1 bg-inputBg rounded-2xl border border-white/5 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all shadow-lg p-1.5 relative z-10">
+        <form id="form-send-message" class="max-w-5xl mx-auto flex items-end gap-1 bg-inputBg rounded-2xl border border-white/5 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all shadow-lg p-1.5 relative z-10 overflow-hidden">
           
+          <!-- Recording Overlay -->
+          <div id="recording-overlay" class="hidden absolute inset-0 bg-inputBg z-20 flex items-center justify-between px-4 border border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.15)] backdrop-blur-md">
+              <div class="flex items-center gap-3 text-red-400 font-bold tracking-widest">
+                  <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>
+                  <span id="recording-time">0:00</span>
+              </div>
+              <div class="flex items-center gap-2">
+                  <button type="button" onclick="cancelRecording()" class="p-2.5 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors" title="Cancel">
+                      <i data-lucide="trash-2" class="w-5 h-5"></i>
+                  </button>
+                  <button type="button" onclick="stopAndSendRecording()" class="px-5 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold transition-all shadow-md shadow-red-500/20 active:scale-95 flex items-center gap-2" title="Send Voice Note">
+                      <i data-lucide="send" class="w-4 h-4"></i> Send
+                  </button>
+              </div>
+          </div>
+
           <button type="button" onclick="openModal('poll')" class="p-2.5 ml-1 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="Create Poll">
             <i data-lucide="bar-chart-2" class="w-[22px] h-[22px]"></i>
           </button>
@@ -495,6 +511,10 @@
           <input type="file" id="chat-image-input" accept="image/*" class="hidden" />
           <button type="button" id="btn-attach-image" class="p-2.5 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="Attach Image">
             <i data-lucide="image" class="w-[22px] h-[22px]"></i>
+          </button>
+          
+          <button type="button" id="btn-record-audio" class="p-2.5 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="Send Voice Note">
+            <i data-lucide="mic" class="w-[22px] h-[22px]"></i>
           </button>
 
           <textarea 
@@ -1254,6 +1274,7 @@
       let msgPreview = msg.text || '';
       if (!msgPreview) {
           if (msg.imageUrl) msgPreview = '🖼️ Sent an image';
+          else if (msg.audioUrl) msgPreview = '🎤 Sent a voice note';
           else if (msg.isPoll) msgPreview = '📊 Sent a poll';
       }
 
@@ -1302,6 +1323,7 @@
         let msgPreview = msg.text || '';
         if (!msgPreview) {
             if (msg.imageUrl) msgPreview = '🖼️ Sent an image';
+            else if (msg.audioUrl) msgPreview = '🎤 Sent a voice note';
             else if (msg.isPoll) msgPreview = '📊 Sent a poll';
         }
 
@@ -2096,6 +2118,113 @@
     const chatImagePreview = document.getElementById('chat-image-preview');
     const btnRemoveChatImage = document.getElementById('btn-remove-chat-image');
 
+    // Voice Note State
+    let mediaRecorder;
+    let audioChunks = [];
+    let recordingInterval;
+    let recordingSeconds = 0;
+    const MAX_RECORDING_SECONDS = 60; // Max 1 minute to prevent large payloads
+
+    document.getElementById('btn-record-audio').addEventListener('click', async () => {
+        const activeChat = allChats[activeChatId];
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (myProfile?.muted || (activeChat?.locked && !isAtLeastMod())) {
+            alert("You do not have permission to send messages here.");
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                stream.getTracks().forEach(track => track.stop()); // Free mic
+                if (audioChunks.length > 0 && !window.isCancelingRecording) {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const base64Audio = reader.result;
+                        await sendAudioMessage(base64Audio);
+                    };
+                    reader.readAsDataURL(audioBlob);
+                }
+                window.isCancelingRecording = false;
+            };
+
+            document.getElementById('recording-overlay').classList.remove('hidden');
+            recordingSeconds = 0;
+            document.getElementById('recording-time').textContent = "0:00";
+            
+            recordingInterval = setInterval(() => {
+                recordingSeconds++;
+                const mins = Math.floor(recordingSeconds / 60);
+                const secs = recordingSeconds % 60;
+                document.getElementById('recording-time').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                
+                if (recordingSeconds >= MAX_RECORDING_SECONDS) {
+                    window.stopAndSendRecording();
+                }
+            }, 1000);
+
+            mediaRecorder.start();
+        } catch (err) {
+            console.error("Mic access denied", err);
+            alert("Microphone access is required to send voice notes. Please allow permissions in your browser.");
+        }
+    });
+
+    window.cancelRecording = function() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            window.isCancelingRecording = true;
+            mediaRecorder.stop();
+        }
+        cleanupRecordingUI();
+    };
+
+    window.stopAndSendRecording = function() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            window.isCancelingRecording = false;
+            mediaRecorder.stop();
+        }
+        cleanupRecordingUI();
+    };
+
+    function cleanupRecordingUI() {
+        clearInterval(recordingInterval);
+        document.getElementById('recording-overlay').classList.add('hidden');
+    }
+
+    async function sendAudioMessage(base64Audio) {
+        if (!firebaseUser) return;
+        const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const msgRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId);
+        
+        updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
+            [`typing.${userName}`]: 0
+        }).catch(e => {});
+
+        await setDoc(msgRef, {
+            chatId: activeChatId,
+            text: '',
+            audioUrl: base64Audio,
+            replyTo: replyingTo || null,
+            sender: userName,
+            senderNickname: userNickname,
+            senderEmail: firebaseUser.email || null,
+            createdAt: Date.now(),
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            senderPhoto: currentPhotoURL 
+        });
+        
+        cancelReply();
+        markChatAsRead(activeChatId);
+    }
+
     btnAttachImage.addEventListener('click', () => chatImageInput.click());
 
     chatImageInput.addEventListener('change', (e) => {
@@ -2739,6 +2868,9 @@
               const formattedText = msg.isPoll ? '' : formatMessageText(msg.text);
               const attachedImageHTML = msg.imageUrl ? `<img src="${msg.imageUrl}" class="${msg.text ? 'mt-3' : ''} rounded-xl max-w-full h-auto max-h-72 object-contain border border-white/10 shadow-lg bg-black/20" alt="Attached image" loading="lazy" />` : '';
               
+              // Voice Note Rendering
+              const attachedAudioHTML = msg.audioUrl ? `<div class="${msg.text || msg.imageUrl ? 'mt-3' : ''} bg-black/30 rounded-full pr-4 pl-1 py-1 border border-white/5 flex items-center w-fit min-w-[200px]"><audio controls src="${msg.audioUrl}" class="h-[36px] w-[240px] outline-none filter brightness-110 contrast-125 opacity-90 sepia-[.2] hue-rotate-[200deg]"></audio></div>` : '';
+
               // Game Invite Rendering
               let gameInviteHTML = '';
               if (msg.isGameInvite) {
@@ -2870,7 +3002,7 @@
                         </div>
                       </div>
                       
-                      <div class="w-fit max-w-full min-w-[40px] px-4 py-2.5 text-[14.5px] leading-relaxed text-slate-100 shadow-sm break-words whitespace-pre-wrap text-left ${isMe ? myBubbleBase : theirBubbleBase}">${replyBlockHTML}${formattedText}${pollHTML}${attachedImageHTML}${gameInviteHTML}</div>
+                      <div class="w-fit max-w-full min-w-[40px] px-4 py-2.5 text-[14.5px] leading-relaxed text-slate-100 shadow-sm break-words whitespace-pre-wrap text-left ${isMe ? myBubbleBase : theirBubbleBase}">${replyBlockHTML}${formattedText}${pollHTML}${attachedImageHTML}${attachedAudioHTML}${gameInviteHTML}</div>
                       ${reactionsHTML}
                     </div>
                   </div>
