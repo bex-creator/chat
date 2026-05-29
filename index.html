@@ -2255,7 +2255,7 @@
                     const errText = await response.text();
                     // Don't retry on fatal payload or auth errors
                     if (response.status === 400 || response.status === 403) {
-                        throw new Error(`Fatal API Error (${response.status}): ${errText}`);
+                        throw new Error(`Fatal API Error (${response.status}). Make sure you are running in the Canvas environment or have a valid API key.`);
                     }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -2269,10 +2269,13 @@
 
     async function callGeminiAPI(userQuery, systemPrompt) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        
+        // Fixed payload schema so the environment proxy correctly intercepts and authorizes it
         const payload = {
-            contents: [{ role: "user", parts: [{ text: userQuery }] }],
-            systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }
+            contents: [{ parts: [{ text: userQuery }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] }
         };
+        
         const result = await fetchWithRetry(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
