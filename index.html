@@ -2657,6 +2657,15 @@
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   senderPhoto: 'https://api.dicebear.com/7.x/bottts/svg?seed=Nexus&backgroundColor=6366f1'
               });
+              
+              // Clear any pending timeouts so it doesn't accidentally reply after being stopped
+              if (window.nexusTimeouts && window.nexusTimeouts[activeChatId]) {
+                  clearTimeout(window.nexusTimeouts[activeChatId]);
+                  delete window.nexusTimeouts[activeChatId];
+                  updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
+                      [`typing.nexus_ai`]: 0
+                  }).catch(e => {});
+              }
           }
           return;
       }
@@ -2707,63 +2716,73 @@
 
       // Trigger Nexus Persona Bot if @Nexus is mentioned or if it is currently active in this chat
       const isNexusMentioned = text.toLowerCase().includes('@nexus');
-      if (isNexusMentioned && !activeChat?.nexusActive) {
+      let shouldTriggerBot = activeChat?.nexusActive || false;
+      
+      if (isNexusMentioned && !shouldTriggerBot) {
           await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
               nexusActive: true
           }).catch(e => {});
+          shouldTriggerBot = true;
       }
 
-      if (isNexusMentioned || activeChat?.nexusActive) {
-          handleNexusBotResponse(activeChatId, text);
+      if (shouldTriggerBot) {
+          handleNexusBotResponse(activeChatId);
       }
     });
 
     // --- NEXUS BOT PERSONA ---
-    async function handleNexusBotResponse(chatId, triggerText) {
-        // Prevent overlapping generations from the same client
-        if (window.isNexusTyping) return;
-        window.isNexusTyping = true;
+    window.nexusTimeouts = window.nexusTimeouts || {};
 
+    async function handleNexusBotResponse(chatId) {
+        // Clear existing timeout to "debounce" rapid incoming messages
+        if (window.nexusTimeouts[chatId]) {
+            clearTimeout(window.nexusTimeouts[chatId]);
+        }
+
+        // Show typing indicator immediately
         updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId), {
             [`typing.nexus_ai`]: Date.now()
         }).catch(e => {});
 
-        try {
-            const recentMsgs = allMessages
-                .filter(m => m.chatId === chatId && !m.deleted)
-                .sort((a, b) => a.createdAt - b.createdAt)
-                .slice(-15);
-                
-            const context = recentMsgs.map(m => {
-                const senderName = m.sender === 'nexus_ai' ? 'Nexus' : (m.senderNickname || m.sender);
-                return `${senderName}: ${m.text || '[Attachment]'}`;
-            }).join('\n');
+        // Wait 2.5 seconds to see if the user sends another message before generating a response
+        window.nexusTimeouts[chatId] = setTimeout(async () => {
+            try {
+                const recentMsgs = allMessages
+                    .filter(m => m.chatId === chatId && !m.deleted)
+                    .sort((a, b) => a.createdAt - b.createdAt)
+                    .slice(-15);
+                    
+                const context = recentMsgs.map(m => {
+                    const senderName = m.sender === 'nexus_ai' ? 'Nexus' : (m.senderNickname || m.sender);
+                    return `${senderName}: ${m.text || '[Attachment]'}`;
+                }).join('\n');
 
-            const systemPrompt = "You are Nexus, a helpful, witty, and friendly AI assistant who is a participant in this chat room. You are currently in active conversation mode with the users. Keep responses concise, natural, and conversational. Do not sound like a generic bot. Use markdown for emphasis if needed.";
-            const query = `Chat Context:\n${context}\n\nPlease respond naturally to the ongoing conversation.`;
+                const systemPrompt = "You are Nexus, a helpful, witty, and friendly AI assistant who is a participant in this chat room. You are currently in active conversation mode with the users. Keep responses concise, natural, and conversational. Do not sound like a generic bot. Use markdown for emphasis if needed.";
+                const query = `Chat Context:\n${context}\n\nPlease respond naturally to the ongoing conversation.`;
 
-            let responseText = await callPollinationsAPI(query, systemPrompt);
-            responseText = responseText.replace(/^"|"$/g, '').trim();
+                let responseText = await callPollinationsAPI(query, systemPrompt);
+                responseText = responseText.replace(/^"|"$/g, '').trim();
 
-            const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
-                chatId: chatId,
-                text: responseText,
-                sender: 'nexus_ai',
-                senderNickname: 'Nexus',
-                senderEmail: 'nexus@ai.system',
-                createdAt: Date.now(),
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                senderPhoto: 'https://api.dicebear.com/7.x/bottts/svg?seed=Nexus&backgroundColor=6366f1'
-            });
-        } catch(e) {
-            console.error("Nexus Bot Error:", e);
-        } finally {
-            window.isNexusTyping = false;
-            updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId), {
-                [`typing.nexus_ai`]: 0
-            }).catch(e => {});
-        }
+                const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
+                    chatId: chatId,
+                    text: responseText,
+                    sender: 'nexus_ai',
+                    senderNickname: 'Nexus',
+                    senderEmail: 'nexus@ai.system',
+                    createdAt: Date.now(),
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    senderPhoto: 'https://api.dicebear.com/7.x/bottts/svg?seed=Nexus&backgroundColor=6366f1'
+                });
+            } catch(e) {
+                console.error("Nexus Bot Error:", e);
+            } finally {
+                updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId), {
+                    [`typing.nexus_ai`]: 0
+                }).catch(e => {});
+                delete window.nexusTimeouts[chatId];
+            }
+        }, 2500);
     }
 
     // 4. RENDERING FUNCTIONS
