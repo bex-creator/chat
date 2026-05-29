@@ -2973,11 +2973,7 @@
               }
 
               const safeStatus = senderProfile?.statusText ? senderProfile.statusText.replace(/"/g, '&quot;') : '';
-              const statusBubble = safeStatus ? `
-                  <div class="absolute -top-1.5 ${isMe ? 'right-7 rounded-br-[4px]' : 'left-7 rounded-bl-[4px]'} bg-inputBg border border-white/10 text-slate-200 text-[10px] px-2.5 py-0.5 rounded-2xl whitespace-nowrap z-10 shadow-md truncate max-w-[140px]" title="${safeStatus}">
-                     ${safeStatus}
-                  </div>
-              ` : '';
+              const statusBubble = ''; // Floating bubble removed to prevent overlapping
 
               const deletedBadge = isDeleted ? '<span class="text-[9px] bg-red-500/20 text-red-500 border border-red-500/30 px-1.5 rounded font-black tracking-tighter ml-1.5">DELETED</span>' : '';
               const editedBadge = msg.editHistory && msg.editHistory.length > 0 ? `<span class="text-[9px] text-textMuted hover:text-white cursor-pointer ml-1.5 hover:underline" onclick="viewHistory('${msg.id}')" title="View edit history">(edited)</span>` : '';
@@ -3138,6 +3134,7 @@
                         <div class="flex items-center gap-1.5">
                           ${pinnedBadge}
                           <span class="font-bold text-[13px] tracking-tight ${nameClass}" ${nameStyle}>${isMe ? 'You' : displaySender}</span>
+                          ${safeStatus ? `<span class="text-[10px] bg-black/40 border border-white/5 text-slate-300 px-2 py-0.5 rounded-lg truncate max-w-[130px] font-medium" title="${safeStatus}">${safeStatus}</span>` : ''}
                           ${roleBadge}
                           ${deletedBadge}
                         </div>
