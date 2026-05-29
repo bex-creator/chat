@@ -519,15 +519,48 @@
           </button>
 
           <!-- Nexus AI Assistant Menu Container -->
-          <div id="ai-menu-container" class="hidden absolute bottom-full left-12 mb-2 w-56 bg-sidebarBg border border-primary/30 rounded-2xl shadow-2xl overflow-hidden z-50 animate-toast-in">
-              <div class="p-2 border-b border-white/5 text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1.5 bg-primary/5">
-                  <i data-lucide="sparkles" class="w-3 h-3"></i> Nexus AI
+          <div id="ai-menu-container" class="hidden absolute bottom-full left-12 mb-2 w-[320px] max-w-[calc(100vw-4rem)] bg-sidebarBg border border-primary/30 rounded-2xl shadow-2xl overflow-hidden z-50 animate-toast-in flex-col">
+              <!-- Header -->
+              <div class="p-2.5 border-b border-white/5 flex items-center justify-between bg-primary/5">
+                  <span class="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1.5">
+                      <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nexus AI
+                  </span>
+                  <button type="button" id="btn-ai-close" class="text-textMuted hover:text-white transition-colors p-1 rounded-md hover:bg-white/10"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
               </div>
-              <div class="flex flex-col p-1">
-                  <button type="button" onclick="handleAIAction('suggest')" class="text-left px-3 py-2 text-sm text-slate-200 hover:bg-white/5 rounded-xl transition-colors flex items-center gap-2"><i data-lucide="message-square-plus" class="w-4 h-4 text-textMuted"></i> Suggest Reply</button>
-                  <button type="button" onclick="handleAIAction('improve')" class="text-left px-3 py-2 text-sm text-slate-200 hover:bg-white/5 rounded-xl transition-colors flex items-center gap-2"><i data-lucide="wand-2" class="w-4 h-4 text-textMuted"></i> Improve Writing</button>
-                  <button type="button" onclick="handleAIAction('friendly')" class="text-left px-3 py-2 text-sm text-slate-200 hover:bg-white/5 rounded-xl transition-colors flex items-center gap-2"><i data-lucide="smile" class="w-4 h-4 text-textMuted"></i> Make it Friendly</button>
-                  <button type="button" onclick="handleAIAction('professional')" class="text-left px-3 py-2 text-sm text-slate-200 hover:bg-white/5 rounded-xl transition-colors flex items-center gap-2"><i data-lucide="briefcase" class="w-4 h-4 text-textMuted"></i> Make Professional</button>
+
+              <!-- Default Quick Actions -->
+              <div id="ai-quick-actions" class="flex flex-col p-1.5">
+                  <div class="flex flex-wrap gap-1 p-1">
+                     <button type="button" onclick="handleAIAction('suggest')" class="px-2.5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-slate-300 transition-colors border border-white/5 flex-1 text-center">Suggest Reply</button>
+                     <button type="button" onclick="handleAIAction('improve')" class="px-2.5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-slate-300 transition-colors border border-white/5 flex-1 text-center">Improve Text</button>
+                  </div>
+                  <div class="flex flex-wrap gap-1 p-1 pt-0">
+                     <button type="button" onclick="handleAIAction('friendly')" class="px-2.5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-slate-300 transition-colors border border-white/5 flex-1 text-center">Friendly</button>
+                     <button type="button" onclick="handleAIAction('professional')" class="px-2.5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-slate-300 transition-colors border border-white/5 flex-1 text-center">Professional</button>
+                  </div>
+              </div>
+
+              <!-- Output Area -->
+              <div id="ai-output-area" class="hidden p-3 flex-col gap-3 max-h-64 overflow-y-auto custom-scrollbar border-b border-white/5 bg-black/20">
+                  <p id="ai-output-text" class="text-[13px] text-slate-200 whitespace-pre-wrap leading-relaxed select-text"></p>
+                  <div class="flex gap-2 mt-1">
+                      <button type="button" onclick="acceptAIResponse()" class="flex-1 bg-primary hover:bg-primaryHover text-white py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95">Accept & Use</button>
+                      <button type="button" onclick="resetAIUI()" class="flex-1 bg-white/10 hover:bg-white/20 text-slate-200 py-2 rounded-xl text-xs font-bold transition-all active:scale-95">Discard</button>
+                  </div>
+              </div>
+
+              <!-- Loading State -->
+              <div id="ai-loading-state" class="hidden p-8 flex flex-col items-center justify-center gap-3 border-b border-white/5 bg-black/10">
+                  <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-primary"></i>
+                  <span class="text-xs font-medium text-slate-400">Thinking...</span>
+              </div>
+
+              <!-- Input Area -->
+              <div class="p-2 bg-inputBg flex items-center gap-2 border-t border-white/5">
+                  <input type="text" id="ai-custom-prompt" placeholder="Ask Nexus to write something..." class="flex-1 bg-transparent border-none text-[13px] text-slate-100 placeholder-textMuted px-2 py-1.5 outline-none" autocomplete="off" />
+                  <button type="button" onclick="handleAICustomPrompt()" id="btn-ai-submit" class="p-2 rounded-xl bg-primary hover:bg-primaryHover text-white transition-all shadow-sm active:scale-95">
+                      <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                  </button>
               </div>
           </div>
 
@@ -2149,28 +2182,50 @@
 
     const aiToggle = document.getElementById('btn-ai-toggle');
     const aiContainer = document.getElementById('ai-menu-container');
+    const aiQuickActions = document.getElementById('ai-quick-actions');
+    const aiOutputArea = document.getElementById('ai-output-area');
+    const aiOutputText = document.getElementById('ai-output-text');
+    const aiLoadingState = document.getElementById('ai-loading-state');
+    const aiCustomPrompt = document.getElementById('ai-custom-prompt');
+    const btnAiClose = document.getElementById('btn-ai-close');
+    
+    let lastAIResponse = "";
     
     const plusToggle = document.getElementById('btn-plus-toggle');
     const plusContainer = document.getElementById('plus-menu-container');
 
     emojiToggle.addEventListener('click', () => {
       emojiContainer.classList.toggle('hidden');
-      if (aiContainer) aiContainer.classList.add('hidden');
+      if (aiContainer) { aiContainer.classList.add('hidden'); aiContainer.classList.remove('flex'); }
       if (plusContainer) plusContainer.classList.add('hidden');
     });
 
+    if (btnAiClose) {
+        btnAiClose.addEventListener('click', () => {
+            aiContainer.classList.add('hidden');
+            aiContainer.classList.remove('flex');
+        });
+    }
+
     if (aiToggle) {
         aiToggle.addEventListener('click', () => {
-            aiContainer.classList.toggle('hidden');
-            emojiContainer.classList.add('hidden');
-            if (plusContainer) plusContainer.classList.add('hidden');
+            if (aiContainer.classList.contains('hidden')) {
+                aiContainer.classList.remove('hidden');
+                aiContainer.classList.add('flex');
+                resetAIUI();
+                emojiContainer.classList.add('hidden');
+                if (plusContainer) plusContainer.classList.add('hidden');
+            } else {
+                aiContainer.classList.add('hidden');
+                aiContainer.classList.remove('flex');
+            }
         });
     }
 
     if (plusToggle) {
         plusToggle.addEventListener('click', () => {
             plusContainer.classList.toggle('hidden');
-            if (aiContainer) aiContainer.classList.add('hidden');
+            if (aiContainer) { aiContainer.classList.add('hidden'); aiContainer.classList.remove('flex'); }
             emojiContainer.classList.add('hidden');
         });
     }
@@ -2181,6 +2236,7 @@
       }
       if (aiContainer && !aiContainer.contains(e.target) && !aiToggle.contains(e.target)) {
         aiContainer.classList.add('hidden');
+        aiContainer.classList.remove('flex');
       }
       if (plusContainer && !plusContainer.contains(e.target) && !plusToggle.contains(e.target)) {
         plusContainer.classList.add('hidden');
@@ -2233,53 +2289,35 @@
         return resultText;
     }
 
-    window.handleAIAction = async function(action) {
-        if (aiContainer) aiContainer.classList.add('hidden');
+    window.resetAIUI = function() {
+        aiQuickActions.classList.remove('hidden');
+        aiOutputArea.classList.add('hidden');
+        aiOutputArea.classList.remove('flex');
+        aiLoadingState.classList.add('hidden');
+        aiLoadingState.classList.remove('flex');
+        aiCustomPrompt.value = '';
+        lastAIResponse = '';
+    };
+
+    window.acceptAIResponse = function() {
+        if (lastAIResponse) {
+            msgInput.value = lastAIResponse;
+            msgInput.dispatchEvent(new Event('input'));
+            msgInput.focus();
+        }
+        aiContainer.classList.add('hidden');
+        aiContainer.classList.remove('flex');
+    };
+
+    async function executeAIQuery(query, sysPrompt) {
+        aiQuickActions.classList.add('hidden');
+        aiOutputArea.classList.add('hidden');
+        aiOutputArea.classList.remove('flex');
+        aiLoadingState.classList.remove('hidden');
+        aiLoadingState.classList.add('flex');
+        aiCustomPrompt.value = '';
         
-        const originalPlaceholder = msgInput.placeholder;
-        msgInput.disabled = true;
-        msgInput.placeholder = "Nexus AI is thinking...";
-        const originalInputVal = msgInput.value;
-        btnSendMsg.classList.add('hidden');
-
         try {
-            let query = "";
-            let sysPrompt = "You are Nexus AI, a helpful writing assistant built into a chat application. Return only the requested text without quotes or markdown code blocks unless formatting is explicitly needed.";
-
-            if (action === 'suggest') {
-                const recentMsgs = allMessages
-                    .filter(m => m.chatId === activeChatId && !m.isSystem && !m.isPoll && !m.deleted)
-                    .sort((a, b) => a.createdAt - b.createdAt)
-                    .slice(-10);
-                
-                if (recentMsgs.length === 0) {
-                    msgInput.value = "Hey everyone! How's it going?";
-                    msgInput.disabled = false;
-                    msgInput.placeholder = originalPlaceholder;
-                    msgInput.dispatchEvent(new Event('input'));
-                    return;
-                }
-
-                const chatContext = recentMsgs.map(m => `${m.senderNickname || m.sender}: ${m.text || '[Attachment/Media]'}`).join('\n');
-                query = `Here is the recent chat history:\n\n${chatContext}\n\nSuggest a natural, brief, and contextual reply that I (username: ${userName}) could send next. Provide just the text of the reply.`;
-            } else {
-                if (!originalInputVal.trim()) {
-                    alert("Please type something in the message box first so Nexus AI can rewrite it.");
-                    msgInput.disabled = false;
-                    msgInput.placeholder = originalPlaceholder;
-                    msgInput.value = originalInputVal;
-                    return;
-                }
-                
-                if (action === 'improve') {
-                    query = `Fix any grammar or spelling mistakes and slightly improve the flow of this message. Return ONLY the fixed message: "${originalInputVal}"`;
-                } else if (action === 'friendly') {
-                    query = `Rewrite this message to sound much more friendly, warm, and approachable. Return ONLY the rewritten message: "${originalInputVal}"`;
-                } else if (action === 'professional') {
-                    query = `Rewrite this message to sound highly professional, polite, and formal. Return ONLY the rewritten message: "${originalInputVal}"`;
-                }
-            }
-
             let result = await callGeminiAPI(query, sysPrompt);
             
             // Clean up possible quotes or markdown wrappers
@@ -2287,20 +2325,87 @@
             if (result.startsWith('`') && result.endsWith('`')) {
                 result = result.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim();
             }
-
-            msgInput.value = result;
-            msgInput.dispatchEvent(new Event('input')); // trigger resize and send button display
             
-        } catch (error) {
+            lastAIResponse = result;
+            aiOutputText.textContent = result;
+            
+            aiLoadingState.classList.add('hidden');
+            aiLoadingState.classList.remove('flex');
+            aiOutputArea.classList.remove('hidden');
+            aiOutputArea.classList.add('flex');
+        } catch(error) {
             console.error("Nexus AI Error:", error);
-            alert(`Nexus AI encountered an error: ${error.message}`);
-            msgInput.value = originalInputVal; // Restore on error
-            msgInput.dispatchEvent(new Event('input'));
-        } finally {
-            msgInput.disabled = false;
-            msgInput.placeholder = originalPlaceholder;
-            msgInput.focus();
+            aiOutputText.textContent = `Error: ${error.message}. Please try again.`;
+            aiLoadingState.classList.add('hidden');
+            aiLoadingState.classList.remove('flex');
+            aiOutputArea.classList.remove('hidden');
+            aiOutputArea.classList.add('flex');
         }
+    }
+
+    window.handleAICustomPrompt = function() {
+        const promptText = aiCustomPrompt.value.trim();
+        if (!promptText) return;
+        
+        const originalInputVal = msgInput.value.trim();
+        let query = promptText;
+        if (originalInputVal) {
+            query += `\n\nContext/Current Message in text box: "${originalInputVal}"`;
+        }
+        
+        const sysPrompt = "You are Nexus AI, a helpful writing assistant built into a chat application. Read the prompt, look at any provided context message, and generate a new response based strictly on those instructions. Return ONLY the requested text without quotes or markdown code blocks unless formatting is explicitly needed. Do not include introductory phrases.";
+        executeAIQuery(query, sysPrompt);
+    };
+
+    aiCustomPrompt.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAICustomPrompt();
+        }
+    });
+
+    window.handleAIAction = function(action) {
+        const originalInputVal = msgInput.value.trim();
+        let query = "";
+        let sysPrompt = "You are Nexus AI, a helpful writing assistant built into a chat application. Return only the requested text without quotes or markdown code blocks unless formatting is explicitly needed.";
+
+        if (action === 'suggest') {
+            const recentMsgs = allMessages
+                .filter(m => m.chatId === activeChatId && !m.isSystem && !m.isPoll && !m.deleted)
+                .sort((a, b) => a.createdAt - b.createdAt)
+                .slice(-10);
+            
+            if (recentMsgs.length === 0) {
+                lastAIResponse = "Hey everyone! How's it going?";
+                aiOutputText.textContent = lastAIResponse;
+                aiQuickActions.classList.add('hidden');
+                aiOutputArea.classList.remove('hidden');
+                aiOutputArea.classList.add('flex');
+                return;
+            }
+
+            const chatContext = recentMsgs.map(m => `${m.senderNickname || m.sender}: ${m.text || '[Attachment/Media]'}`).join('\n');
+            query = `Here is the recent chat history:\n\n${chatContext}\n\nSuggest a natural, brief, and contextual reply that I (username: ${userName}) could send next. Provide just the text of the reply.`;
+        } else {
+            if (!originalInputVal) {
+                aiOutputText.textContent = "Please type something in the main message box first so I have text to work with!";
+                aiQuickActions.classList.add('hidden');
+                aiOutputArea.classList.remove('hidden');
+                aiOutputArea.classList.add('flex');
+                lastAIResponse = "";
+                return;
+            }
+            
+            if (action === 'improve') {
+                query = `Fix any grammar or spelling mistakes and slightly improve the flow of this message. Return ONLY the fixed message: "${originalInputVal}"`;
+            } else if (action === 'friendly') {
+                query = `Rewrite this message to sound much more friendly, warm, and approachable. Return ONLY the rewritten message: "${originalInputVal}"`;
+            } else if (action === 'professional') {
+                query = `Rewrite this message to sound highly professional, polite, and formal. Return ONLY the rewritten message: "${originalInputVal}"`;
+            }
+        }
+
+        executeAIQuery(query, sysPrompt);
     };
 
     emojiPicker.addEventListener('emoji-click', event => {
