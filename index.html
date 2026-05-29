@@ -2253,15 +2253,19 @@
                 const response = await fetch(url, options);
                 if (!response.ok) {
                     const errText = await response.text();
+                    console.error("API Error Response:", errText); // Logs exact reason to console
                     // Don't retry on fatal payload or auth errors
                     if (response.status === 400 || response.status === 403) {
-                        throw new Error(`Fatal API Error (${response.status}). Make sure you are running in the Canvas environment or have a valid API key.`);
+                        // Extracting clean error message if possible
+                        let cleanErr = errText;
+                        try { cleanErr = JSON.parse(errText).error.message; } catch(e){}
+                        throw new Error(`API Error (${response.status}): ${cleanErr}`);
                     }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return await response.json();
             } catch (error) {
-                if (i === maxRetries - 1 || error.message.includes('Fatal')) throw error;
+                if (i === maxRetries - 1 || error.message.includes('API Error')) throw error;
                 await new Promise(resolve => setTimeout(resolve, delays[i]));
             }
         }
@@ -2270,10 +2274,12 @@
     async function callGeminiAPI(userQuery, systemPrompt) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         
-        // Fixed payload schema so the environment proxy correctly intercepts and authorizes it
+        // FIX: Some preview environments rigorously reject the 'systemInstruction' schema field.
+        // We merge the system prompt directly into the standard contents array to guarantee it passes the security filter.
+        const combinedPrompt = `[SYSTEM INSTRUCTIONS]:\n${systemPrompt}\n\n[USER REQUEST]:\n${userQuery}`;
+        
         const payload = {
-            contents: [{ parts: [{ text: userQuery }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            contents: [{ parts: [{ text: combinedPrompt }] }]
         };
         
         const result = await fetchWithRetry(url, {
@@ -2285,7 +2291,7 @@
         let resultText = result.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!resultText) {
             if (result.promptFeedback?.blockReason) {
-                throw new Error("Response was blocked by safety filters.");
+                throw new Error(`Blocked by safety filters: ${result.promptFeedback.blockReason}`);
             }
             throw new Error("No text response generated.");
         }
