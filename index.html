@@ -799,6 +799,16 @@
           </div>
         </div>
 
+        <!-- AI Settings Section (NEW) -->
+        <div>
+          <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Nexus AI</h3>
+          <div class="flex flex-col gap-2 p-4 bg-inputBg rounded-2xl border border-white/5">
+            <span class="text-slate-100 text-sm font-semibold">API Key (For Local Use)</span>
+            <input type="password" id="settings-api-key" placeholder="AIzaSy..." class="w-full bg-black/50 border border-white/10 focus:border-primary/50 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none transition-all" />
+            <span class="text-xs text-textMuted mt-0.5">Only needed if running outside the workspace.</span>
+          </div>
+        </div>
+
         <!-- Preferences Section -->
         <div>
           <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Preferences</h3>
@@ -1960,9 +1970,14 @@
 
     document.getElementById('btn-open-settings').addEventListener('click', () => {
       document.getElementById('toggle-notifications').checked = appSettings.notifications;
+      document.getElementById('settings-api-key').value = localStorage.getItem('nexus_api_key') || "";
       document.getElementById('settings-modal').classList.remove('hidden');
       closeSidebarMobile();
       if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+
+    document.getElementById('settings-api-key').addEventListener('input', (e) => {
+        localStorage.setItem('nexus_api_key', e.target.value.trim());
     });
 
     window.closeSettingsModal = function() {
@@ -2259,27 +2274,28 @@
                         // Extracting clean error message if possible
                         let cleanErr = errText;
                         try { cleanErr = JSON.parse(errText).error.message; } catch(e){}
-                        throw new Error(`API Error (${response.status}): ${cleanErr}`);
+                        throw new Error(`API Key is missing or invalid. If running locally, please add it in Settings. (${cleanErr})`);
                     }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return await response.json();
             } catch (error) {
-                if (i === maxRetries - 1 || error.message.includes('API Error')) throw error;
+                if (i === maxRetries - 1 || error.message.includes('API Key is missing')) throw error;
                 await new Promise(resolve => setTimeout(resolve, delays[i]));
             }
         }
     }
 
     async function callGeminiAPI(userQuery, systemPrompt) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // Fallback to local storage key if we are running outside the workspace
+        const localKey = localStorage.getItem('nexus_api_key');
+        const activeKey = localKey || apiKey;
         
-        // FIX: Some preview environments rigorously reject the 'systemInstruction' schema field.
-        // We merge the system prompt directly into the standard contents array to guarantee it passes the security filter.
-        const combinedPrompt = `[SYSTEM INSTRUCTIONS]:\n${systemPrompt}\n\n[USER REQUEST]:\n${userQuery}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`;
         
         const payload = {
-            contents: [{ parts: [{ text: combinedPrompt }] }]
+            contents: [{ parts: [{ text: userQuery }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] }
         };
         
         const result = await fetchWithRetry(url, {
