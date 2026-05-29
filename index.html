@@ -799,16 +799,6 @@
           </div>
         </div>
 
-        <!-- AI Settings Section (NEW) -->
-        <div>
-          <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Nexus AI</h3>
-          <div class="flex flex-col gap-2 p-4 bg-inputBg rounded-2xl border border-white/5">
-            <span class="text-slate-100 text-sm font-semibold">API Key (For Local Use)</span>
-            <input type="password" id="settings-api-key" placeholder="AIzaSy..." class="w-full bg-black/50 border border-white/10 focus:border-primary/50 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none transition-all" />
-            <span class="text-xs text-textMuted mt-0.5">Only needed if running outside the workspace.</span>
-          </div>
-        </div>
-
         <!-- Preferences Section -->
         <div>
           <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Preferences</h3>
@@ -1970,14 +1960,9 @@
 
     document.getElementById('btn-open-settings').addEventListener('click', () => {
       document.getElementById('toggle-notifications').checked = appSettings.notifications;
-      document.getElementById('settings-api-key').value = localStorage.getItem('nexus_api_key') || "";
       document.getElementById('settings-modal').classList.remove('hidden');
       closeSidebarMobile();
       if (typeof lucide !== 'undefined') lucide.createIcons();
-    });
-
-    document.getElementById('settings-api-key').addEventListener('input', (e) => {
-        localStorage.setItem('nexus_api_key', e.target.value.trim());
     });
 
     window.closeSettingsModal = function() {
@@ -2258,59 +2243,34 @@
       }
     });
 
-    // --- NEXUS AI INTEGRATION ---
-    const apiKey = "";
+    // --- NEXUS AI INTEGRATION (POLLINATIONS) ---
     
-    async function fetchWithRetry(url, options, maxRetries = 5) {
-        const delays = [1000, 2000, 4000, 8000, 16000];
-        for (let i = 0; i < maxRetries; i++) {
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok) {
-                    const errText = await response.text();
-                    console.error("API Error Response:", errText); // Logs exact reason to console
-                    // Don't retry on fatal payload or auth errors
-                    if (response.status === 400 || response.status === 403) {
-                        // Extracting clean error message if possible
-                        let cleanErr = errText;
-                        try { cleanErr = JSON.parse(errText).error.message; } catch(e){}
-                        throw new Error(`API Key is missing or invalid. If running locally, please add it in Settings. (${cleanErr})`);
-                    }
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return await response.json();
-            } catch (error) {
-                if (i === maxRetries - 1 || error.message.includes('API Key is missing')) throw error;
-                await new Promise(resolve => setTimeout(resolve, delays[i]));
-            }
-        }
-    }
-
-    async function callGeminiAPI(userQuery, systemPrompt) {
-        // Fallback to local storage key if we are running outside the workspace
-        const localKey = localStorage.getItem('nexus_api_key');
-        const activeKey = localKey || apiKey;
-        
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`;
+    async function callPollinationsAPI(userQuery, systemPrompt) {
+        const url = 'https://text.pollinations.ai/';
         
         const payload = {
-            contents: [{ parts: [{ text: userQuery }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userQuery }
+            ],
+            model: "openai" // Instructs Pollinations to use a smart underlying text model
         };
         
-        const result = await fetchWithRetry(url, {
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         
-        let resultText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!response.ok) {
+            throw new Error(`Connection Error: ${response.status} ${response.statusText}`);
+        }
+        
+        const resultText = await response.text();
         if (!resultText) {
-            if (result.promptFeedback?.blockReason) {
-                throw new Error(`Blocked by safety filters: ${result.promptFeedback.blockReason}`);
-            }
             throw new Error("No text response generated.");
         }
+        
         return resultText;
     }
 
@@ -2343,7 +2303,7 @@
         aiCustomPrompt.value = '';
         
         try {
-            let result = await callGeminiAPI(query, sysPrompt);
+            let result = await callPollinationsAPI(query, sysPrompt);
             
             // Clean up possible quotes or markdown wrappers
             result = result.replace(/^"|"$/g, '').trim();
