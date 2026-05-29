@@ -2636,6 +2636,31 @@
 
       const activeChat = allChats[activeChatId];
       
+      // -- /stop command interception --
+      if (text.toLowerCase() === '/stop') {
+          msgInput.value = '';
+          msgInput.style.height = '44px';
+          btnSendMsg.classList.add('hidden');
+          
+          if (activeChat?.nexusActive) {
+              await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
+                  nexusActive: false
+              });
+              
+              const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
+                  chatId: activeChatId,
+                  text: "I'll step back now. Just @Nexus me if you need me again! 💤",
+                  sender: 'nexus_ai',
+                  senderNickname: 'Nexus',
+                  createdAt: Date.now(),
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  senderPhoto: 'https://api.dicebear.com/7.x/bottts/svg?seed=Nexus&backgroundColor=6366f1'
+              });
+          }
+          return;
+      }
+
       const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
       if (myProfile?.muted) {
           alert("You are currently muted and cannot send messages.");
@@ -2680,14 +2705,25 @@
       
       markChatAsRead(activeChatId);
 
-      // Trigger Nexus Persona Bot if @Nexus is mentioned
-      if (text.toLowerCase().includes('@nexus')) {
+      // Trigger Nexus Persona Bot if @Nexus is mentioned or if it is currently active in this chat
+      const isNexusMentioned = text.toLowerCase().includes('@nexus');
+      if (isNexusMentioned && !activeChat?.nexusActive) {
+          await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
+              nexusActive: true
+          }).catch(e => {});
+      }
+
+      if (isNexusMentioned || activeChat?.nexusActive) {
           handleNexusBotResponse(activeChatId, text);
       }
     });
 
     // --- NEXUS BOT PERSONA ---
     async function handleNexusBotResponse(chatId, triggerText) {
+        // Prevent overlapping generations from the same client
+        if (window.isNexusTyping) return;
+        window.isNexusTyping = true;
+
         updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId), {
             [`typing.nexus_ai`]: Date.now()
         }).catch(e => {});
@@ -2703,8 +2739,8 @@
                 return `${senderName}: ${m.text || '[Attachment]'}`;
             }).join('\n');
 
-            const systemPrompt = "You are Nexus, a helpful, witty, and friendly AI assistant who is a participant in this chat room. You can generate images if someone asks (tell them to use the /imagine command). Keep responses concise, natural, and fun. Use markdown for emphasis if needed.";
-            const query = `Chat Context:\n${context}\n\nYou have been mentioned in the latest message. Please respond to the chat directly.`;
+            const systemPrompt = "You are Nexus, a helpful, witty, and friendly AI assistant who is a participant in this chat room. You are currently in active conversation mode with the users. Keep responses concise, natural, and conversational. Do not sound like a generic bot. Use markdown for emphasis if needed.";
+            const query = `Chat Context:\n${context}\n\nPlease respond naturally to the ongoing conversation.`;
 
             let responseText = await callPollinationsAPI(query, systemPrompt);
             responseText = responseText.replace(/^"|"$/g, '').trim();
@@ -2723,6 +2759,7 @@
         } catch(e) {
             console.error("Nexus Bot Error:", e);
         } finally {
+            window.isNexusTyping = false;
             updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId), {
                 [`typing.nexus_ai`]: 0
             }).catch(e => {});
