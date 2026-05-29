@@ -504,12 +504,22 @@
               </div>
           </div>
 
-          <button type="button" onclick="openModal('poll')" class="p-2.5 ml-1 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="Create Poll">
-            <i data-lucide="bar-chart-2" class="w-[22px] h-[22px]"></i>
+          <!-- Plus Options Menu Container -->
+          <div id="plus-menu-container" class="hidden absolute bottom-full left-2 mb-2 w-48 bg-sidebarBg border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-toast-in">
+              <div class="flex flex-col p-1">
+                  <button type="button" onclick="openModal('poll'); document.getElementById('plus-menu-container').classList.add('hidden');" class="text-left px-3 py-2 text-sm text-slate-200 hover:bg-white/5 rounded-xl transition-colors flex items-center gap-2"><i data-lucide="bar-chart-2" class="w-4 h-4 text-textMuted"></i> Create Poll</button>
+                  <button type="button" id="btn-attach-image" class="text-left px-3 py-2 text-sm text-slate-200 hover:bg-white/5 rounded-xl transition-colors flex items-center gap-2"><i data-lucide="image" class="w-4 h-4 text-textMuted"></i> Attach Image</button>
+                  <button type="button" id="btn-record-audio" class="text-left px-3 py-2 text-sm text-slate-200 hover:bg-white/5 rounded-xl transition-colors flex items-center gap-2"><i data-lucide="mic" class="w-4 h-4 text-textMuted"></i> Voice Note</button>
+              </div>
+          </div>
+
+          <!-- Plus Toggle -->
+          <button type="button" id="btn-plus-toggle" class="p-2.5 ml-1 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="More Options">
+            <i data-lucide="plus" class="w-[22px] h-[22px]"></i>
           </button>
 
           <!-- Nexus AI Assistant Menu Container -->
-          <div id="ai-menu-container" class="hidden absolute bottom-full left-14 mb-2 w-56 bg-sidebarBg border border-primary/30 rounded-2xl shadow-2xl overflow-hidden z-50 animate-toast-in">
+          <div id="ai-menu-container" class="hidden absolute bottom-full left-12 mb-2 w-56 bg-sidebarBg border border-primary/30 rounded-2xl shadow-2xl overflow-hidden z-50 animate-toast-in">
               <div class="p-2 border-b border-white/5 text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1.5 bg-primary/5">
                   <i data-lucide="sparkles" class="w-3 h-3"></i> Nexus AI
               </div>
@@ -526,13 +536,6 @@
           </button>
 
           <input type="file" id="chat-image-input" accept="image/*" class="hidden" />
-          <button type="button" id="btn-attach-image" class="p-2.5 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="Attach Image">
-            <i data-lucide="image" class="w-[22px] h-[22px]"></i>
-          </button>
-          
-          <button type="button" id="btn-record-audio" class="p-2.5 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="Send Voice Note">
-            <i data-lucide="mic" class="w-[22px] h-[22px]"></i>
-          </button>
 
           <textarea 
             id="input-message"
@@ -2146,15 +2149,28 @@
 
     const aiToggle = document.getElementById('btn-ai-toggle');
     const aiContainer = document.getElementById('ai-menu-container');
+    
+    const plusToggle = document.getElementById('btn-plus-toggle');
+    const plusContainer = document.getElementById('plus-menu-container');
 
     emojiToggle.addEventListener('click', () => {
       emojiContainer.classList.toggle('hidden');
       if (aiContainer) aiContainer.classList.add('hidden');
+      if (plusContainer) plusContainer.classList.add('hidden');
     });
 
     if (aiToggle) {
         aiToggle.addEventListener('click', () => {
             aiContainer.classList.toggle('hidden');
+            emojiContainer.classList.add('hidden');
+            if (plusContainer) plusContainer.classList.add('hidden');
+        });
+    }
+
+    if (plusToggle) {
+        plusToggle.addEventListener('click', () => {
+            plusContainer.classList.toggle('hidden');
+            if (aiContainer) aiContainer.classList.add('hidden');
             emojiContainer.classList.add('hidden');
         });
     }
@@ -2166,6 +2182,9 @@
       if (aiContainer && !aiContainer.contains(e.target) && !aiToggle.contains(e.target)) {
         aiContainer.classList.add('hidden');
       }
+      if (plusContainer && !plusContainer.contains(e.target) && !plusToggle.contains(e.target)) {
+        plusContainer.classList.add('hidden');
+      }
     });
 
     // --- NEXUS AI INTEGRATION ---
@@ -2176,10 +2195,17 @@
         for (let i = 0; i < maxRetries; i++) {
             try {
                 const response = await fetch(url, options);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) {
+                    const errText = await response.text();
+                    // Don't retry on fatal payload or auth errors
+                    if (response.status === 400 || response.status === 403) {
+                        throw new Error(`Fatal API Error (${response.status}): ${errText}`);
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 return await response.json();
             } catch (error) {
-                if (i === maxRetries - 1) throw error;
+                if (i === maxRetries - 1 || error.message.includes('Fatal')) throw error;
                 await new Promise(resolve => setTimeout(resolve, delays[i]));
             }
         }
@@ -2188,15 +2214,23 @@
     async function callGeminiAPI(userQuery, systemPrompt) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         const payload = {
-            contents: [{ parts: [{ text: userQuery }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            contents: [{ role: "user", parts: [{ text: userQuery }] }],
+            systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }
         };
         const result = await fetchWithRetry(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        return result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        
+        let resultText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!resultText) {
+            if (result.promptFeedback?.blockReason) {
+                throw new Error("Response was blocked by safety filters.");
+            }
+            throw new Error("No text response generated.");
+        }
+        return resultText;
     }
 
     window.handleAIAction = async function(action) {
@@ -2214,7 +2248,7 @@
 
             if (action === 'suggest') {
                 const recentMsgs = allMessages
-                    .filter(m => m.chatId === activeChatId && !m.isSystem && !m.isPoll)
+                    .filter(m => m.chatId === activeChatId && !m.isSystem && !m.isPoll && !m.deleted)
                     .sort((a, b) => a.createdAt - b.createdAt)
                     .slice(-10);
                 
@@ -2233,19 +2267,21 @@
                     alert("Please type something in the message box first so Nexus AI can rewrite it.");
                     msgInput.disabled = false;
                     msgInput.placeholder = originalPlaceholder;
+                    msgInput.value = originalInputVal;
                     return;
                 }
                 
                 if (action === 'improve') {
-                    query = `Fix any grammar or spelling mistakes and slightly improve the flow of this message: "${originalInputVal}"`;
+                    query = `Fix any grammar or spelling mistakes and slightly improve the flow of this message. Return ONLY the fixed message: "${originalInputVal}"`;
                 } else if (action === 'friendly') {
-                    query = `Rewrite this message to sound much more friendly, warm, and approachable: "${originalInputVal}"`;
+                    query = `Rewrite this message to sound much more friendly, warm, and approachable. Return ONLY the rewritten message: "${originalInputVal}"`;
                 } else if (action === 'professional') {
-                    query = `Rewrite this message to sound highly professional, polite, and formal: "${originalInputVal}"`;
+                    query = `Rewrite this message to sound highly professional, polite, and formal. Return ONLY the rewritten message: "${originalInputVal}"`;
                 }
             }
 
             let result = await callGeminiAPI(query, sysPrompt);
+            
             // Clean up possible quotes or markdown wrappers
             result = result.replace(/^"|"$/g, '').trim();
             if (result.startsWith('`') && result.endsWith('`')) {
@@ -2257,8 +2293,9 @@
             
         } catch (error) {
             console.error("Nexus AI Error:", error);
-            alert("Nexus AI encountered an error. Please try again.");
+            alert(`Nexus AI encountered an error: ${error.message}`);
             msgInput.value = originalInputVal; // Restore on error
+            msgInput.dispatchEvent(new Event('input'));
         } finally {
             msgInput.disabled = false;
             msgInput.placeholder = originalPlaceholder;
@@ -2287,6 +2324,8 @@
     const MAX_RECORDING_SECONDS = 60; // Max 1 minute to prevent large payloads
 
     document.getElementById('btn-record-audio').addEventListener('click', async () => {
+        if (plusContainer) plusContainer.classList.add('hidden');
+        
         const activeChat = allChats[activeChatId];
         const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
         if (myProfile?.muted || (activeChat?.locked && !isAtLeastMod())) {
@@ -2386,7 +2425,10 @@
         markChatAsRead(activeChatId);
     }
 
-    btnAttachImage.addEventListener('click', () => chatImageInput.click());
+    btnAttachImage.addEventListener('click', () => {
+        if (plusContainer) plusContainer.classList.add('hidden');
+        chatImageInput.click();
+    });
 
     chatImageInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
