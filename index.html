@@ -90,22 +90,22 @@
         --theme-primary-hover: #4f46e5;
     }
     
-    /* Custom Scrollbar */
+    /* Clean Custom Scrollbar */
     ::-webkit-scrollbar {
-      width: 6px;
+      width: 5px;
     }
     ::-webkit-scrollbar-track {
       background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-      background: #1F2433;
-      border-radius: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: #2D3548;
+      background: rgba(255,255,255,0.2);
     }
     .bg-pattern {
-      background-image: radial-gradient(circle at 50% 50%, rgba(31, 36, 51, 0.5) 1px, transparent 1px);
+      background-image: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
       background-size: 32px 32px;
     }
     
@@ -161,6 +161,54 @@
     
     @keyframes shine {
         to { background-position: 200% center; }
+    }
+    
+    /* Immersive Full UI Mode - Transparent Panels, Black Blur Buttons/Inputs */
+    body.immersive-mode #chat-custom-bg-overlay {
+        opacity: 0 !important;
+        display: none !important;
+    }
+    body.immersive-mode #global-theme-bg {
+        opacity: 1 !important;
+    }
+    body.immersive-mode .bg-pattern {
+        background-image: none !important;
+    }
+    
+    /* Completely transparent main structural panels */
+    body.immersive-mode #sidebar,
+    body.immersive-mode header,
+    body.immersive-mode #chat-input-wrapper {
+        background-color: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    /* Text shadows for readability over bright images */
+    body.immersive-mode #sidebar span,
+    body.immersive-mode header h1,
+    body.immersive-mode header span {
+        text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    }
+    
+    /* Black frosted glass strictly for buttons, bubbles, inputs, and floating modals */
+    body.immersive-mode button,
+    body.immersive-mode .bg-inputBg,
+    body.immersive-mode .bg-black\/20,
+    body.immersive-mode .bg-sidebarBg.rounded-2xl,
+    body.immersive-mode .bg-sidebarBg.rounded-\[32px\],
+    body.immersive-mode #form-send-message {
+        background-color: rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(12px) saturate(120%) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(120%) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+
+    /* Subtle hover effect for black blur buttons */
+    body.immersive-mode button:hover:not(.bg-primary):not(.bg-red-600) {
+        background-color: rgba(255, 255, 255, 0.1) !important;
     }
   </style>
 </head>
@@ -370,11 +418,11 @@
   <div id="app-screen" class="hidden flex h-screen w-full overflow-hidden relative z-10">
     
     <!-- Mobile Sidebar Overlay -->
-    <div id="mobile-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden lg:hidden transition-opacity"></div>
+    <div id="mobile-overlay" class="fixed inset-0 bg-black/60 z-40 hidden lg:hidden transition-opacity"></div>
 
     <!-- Sidebar -->
-    <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 transform -translate-x-full transition-transform duration-300 ease-out lg:relative lg:translate-x-0 flex flex-col bg-sidebarBg/70 backdrop-blur-2xl border-r border-border shadow-2xl lg:shadow-none">
-      <div class="flex items-center justify-between p-5 border-b border-border h-[72px]">
+    <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 transform -translate-x-full transition-transform duration-300 ease-out lg:relative lg:translate-x-0 flex flex-col bg-sidebarBg border-r border-white/5 shadow-2xl lg:shadow-none">
+      <div class="flex items-center justify-between p-5 border-b border-white/5 h-[72px]">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-primary to-indigo-600 shadow-md shadow-primary/20">
             <i data-lucide="message-square" class="text-white w-5 h-5"></i>
@@ -418,7 +466,7 @@
         <!-- Chat items injected here -->
       </div>
 
-      <div class="p-4 border-t border-border mt-auto bg-black/20">
+      <div class="p-4 border-t border-white/5 mt-auto bg-black/10">
         <div class="flex items-center justify-between">
           <div id="btn-edit-profile" class="flex items-center gap-3 cursor-pointer min-w-0 hover:bg-white/5 p-2.5 -ml-2 rounded-xl transition-all group border border-transparent hover:border-white/5" title="Edit Profile">
             <div id="sidebar-user-avatar-container" class="relative inline-block flex-shrink-0">
@@ -448,7 +496,7 @@
 
     <!-- Main Chat Area -->
     <div class="flex-1 flex flex-col h-full min-w-0 bg-pattern relative">
-      <header class="flex items-center justify-between px-6 h-[72px] border-b border-border flex-shrink-0 backdrop-blur-2xl bg-mainBg/50 z-10 shadow-sm shadow-black/20">
+      <header class="flex items-center justify-between px-6 h-[72px] border-b border-white/5 flex-shrink-0 bg-mainBg/95 z-10 shadow-sm shadow-black/10">
         <div class="flex items-center gap-4 min-w-0">
           <button id="btn-open-sidebar" class="lg:hidden text-textMuted hover:text-white flex-shrink-0 relative p-1.5 -ml-1.5 rounded-lg hover:bg-white/5 transition-colors">
             <i data-lucide="menu" class="w-6 h-6"></i>
@@ -491,7 +539,7 @@
         <iframe id="game-iframe" class="w-full h-full border-none" src="" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
       </div>
 
-      <div id="chat-input-wrapper" class="p-4 bg-mainBg/50 backdrop-blur-2xl z-10 relative border-t border-white/5">
+      <div id="chat-input-wrapper" class="p-4 md:px-8 md:pb-6 bg-transparent z-10 relative">
         
         <!-- Chat Image Preview -->
         <div id="chat-image-preview-container" class="hidden absolute bottom-full left-4 mb-2">
@@ -571,7 +619,7 @@
         </div>
 
         <!-- Reply Preview Panel -->
-        <div id="reply-preview" class="hidden max-w-5xl mx-auto flex items-center justify-between bg-inputBg border border-border rounded-t-2xl -mb-2 pb-4 pt-3 px-4 text-xs shadow-sm z-0 relative">
+        <div id="reply-preview" class="hidden max-w-4xl mx-auto flex items-center justify-between bg-sidebarBg/95 border border-white/10 rounded-t-3xl -mb-4 pb-6 pt-3 px-5 text-xs shadow-sm z-0 relative">
             <div class="flex items-center gap-2 truncate">
                 <i data-lucide="reply" class="w-3.5 h-3.5 text-primary"></i>
                 <span class="text-textMuted font-medium">Replying to</span>
@@ -582,7 +630,7 @@
             </button>
         </div>
 
-        <div id="typing-indicator" class="max-w-5xl mx-auto hidden items-center gap-1.5 px-4 pb-1 pt-2 -mb-2 text-[11px] font-medium text-primary bg-inputBg border border-white/5 border-b-0 rounded-t-xl z-0 relative">
+        <div id="typing-indicator" class="max-w-4xl mx-auto hidden items-center gap-1.5 px-5 pb-2 pt-2 -mb-4 text-[11px] font-medium text-primary bg-sidebarBg/90 border border-white/10 border-b-0 rounded-t-2xl z-0 relative">
             <span id="typing-text">Someone is typing</span>
             <div class="flex gap-0.5 mt-1">
                 <span class="w-1 h-1 bg-primary rounded-full animate-bounce"></span>
@@ -591,10 +639,10 @@
             </div>
         </div>
 
-        <form id="form-send-message" class="max-w-5xl mx-auto flex items-end gap-1 bg-inputBg rounded-2xl border border-white/5 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all shadow-lg p-1.5 relative z-10 overflow-hidden">
+        <form id="form-send-message" class="max-w-4xl mx-auto flex items-end gap-2 bg-sidebarBg/95 rounded-[28px] border border-white/10 focus-within:border-primary/50 focus-within:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all shadow-2xl p-2 relative z-10 overflow-hidden">
           
           <!-- Recording Overlay -->
-          <div id="recording-overlay" class="hidden absolute inset-0 bg-inputBg z-20 flex items-center justify-between px-4 border border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.15)] backdrop-blur-md">
+          <div id="recording-overlay" class="hidden absolute inset-0 bg-sidebarBg/95 z-20 flex items-center justify-between px-4 border border-red-500/50 shadow-[inset_0_0_20px_rgba(239,68,68,0.15)] rounded-[28px]">
               <div class="flex items-center gap-3 text-red-400 font-bold tracking-widest">
                   <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>
                   <span id="recording-time">0:00</span>
@@ -610,11 +658,11 @@
           </div>
 
           <!-- Plus Toggle -->
-          <button type="button" id="btn-plus-toggle" class="p-2.5 ml-1 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="More Options">
+          <button type="button" id="btn-plus-toggle" class="p-3 ml-1 rounded-2xl text-textMuted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" title="More Options">
             <i data-lucide="plus" class="w-[22px] h-[22px]"></i>
           </button>
 
-          <button type="button" id="btn-ai-toggle" class="p-2.5 rounded-xl text-primary hover:text-primaryHover hover:bg-primary/10 transition-colors flex-shrink-0 shadow-[0_0_15px_rgba(99,102,241,0.15)]" title="Nexus AI Assistant">
+          <button type="button" id="btn-ai-toggle" class="p-3 rounded-2xl text-primary hover:text-primaryHover hover:bg-primary/10 transition-colors flex-shrink-0 shadow-[0_0_15px_rgba(99,102,241,0.15)]" title="Nexus AI Assistant">
             <i data-lucide="sparkles" class="w-[22px] h-[22px]"></i>
           </button>
 
@@ -623,17 +671,17 @@
           <textarea 
             id="input-message"
             placeholder="Type a message..." 
-            class="w-full bg-transparent border-none text-slate-100 placeholder-textMuted px-3 py-3 focus:outline-none focus:ring-0 text-[15px] resize-none max-h-32 min-h-[44px]" 
+            class="w-full bg-transparent border-none text-slate-100 placeholder-textMuted px-2 py-3.5 focus:outline-none focus:ring-0 text-[15px] resize-none max-h-32 min-h-[48px]" 
             rows="1"
             autocomplete="off"
           ></textarea>
           
           <div class="flex items-center gap-1 flex-shrink-0 pb-1 pr-1">
-            <button type="button" id="btn-emoji-toggle" class="p-2.5 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors" title="Add Emoji">
+            <button type="button" id="btn-emoji-toggle" class="p-2.5 rounded-2xl text-textMuted hover:text-white hover:bg-white/5 transition-colors" title="Add Emoji">
               <i data-lucide="smile" class="w-[22px] h-[22px]"></i>
             </button>
 
-            <button id="btn-send-msg" type="submit" class="hidden p-2.5 rounded-xl bg-primary hover:bg-primaryHover text-white transition-all transform scale-100 hover:scale-105 shadow-md shadow-primary/20">
+            <button id="btn-send-msg" type="submit" class="hidden p-2.5 rounded-2xl bg-primary hover:bg-primaryHover text-white transition-all transform scale-100 hover:scale-105 shadow-md shadow-primary/20">
               <i data-lucide="send" class="w-5 h-5 ml-0.5"></i>
             </button>
           </div>
@@ -643,8 +691,8 @@
   </div>
 
   <!-- ==================== MODALS ==================== -->
-  <div id="modal-container" class="hidden fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4 transition-opacity">
-    <div class="w-full max-w-md p-6 rounded-3xl bg-sidebarBg border border-white/10 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] flex flex-col">
+  <div id="modal-container" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 transition-opacity">
+    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-white/10 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)] flex flex-col">
       <div class="flex items-center justify-between mb-6">
         <h2 id="modal-title" class="text-xl font-bold text-white tracking-tight">Modal Title</h2>
         <button type="button" onclick="closeModal()" class="text-textMuted hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5">
@@ -806,8 +854,8 @@
   </div>
 
   <!-- ==================== SETTINGS MODAL ==================== -->
-  <div id="settings-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-md z-[85] flex items-center justify-center p-4">
-    <div class="w-full max-w-md p-6 rounded-3xl bg-sidebarBg border border-white/10 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] flex flex-col">
+  <div id="settings-modal" class="hidden fixed inset-0 bg-black/60 z-[85] flex items-center justify-center p-4">
+    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-white/10 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)] flex flex-col">
       <div class="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
         <h2 class="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
           <i data-lucide="settings" class="w-5 h-5 text-textMuted"></i> User Settings
@@ -876,6 +924,28 @@
               <div class="w-11 h-6 bg-black/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary ring-1 ring-white/10 peer-checked:ring-primary/50"></div>
             </label>
           </div>
+
+          <div class="flex items-center justify-between p-4 mt-3 bg-inputBg rounded-2xl border border-white/5">
+            <div class="flex flex-col">
+              <span class="text-slate-100 text-sm font-semibold text-primary">Immersive Background</span>
+              <span class="text-xs text-textMuted mt-0.5">Make background image fill the entire screen with no dimming</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggle-immersive-bg" class="sr-only peer">
+              <div class="w-11 h-6 bg-black/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary ring-1 ring-white/10 peer-checked:ring-primary/50"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between p-4 mt-3 bg-inputBg rounded-2xl border border-white/5">
+            <div class="flex flex-col">
+              <span class="text-slate-100 text-sm font-semibold text-purple-400">UI Edit Mode</span>
+              <span class="text-xs text-textMuted mt-0.5">Right-click panels to customize their colors</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggle-ui-edit" class="sr-only peer">
+              <div class="w-11 h-6 bg-black/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500 ring-1 ring-white/10 peer-checked:ring-purple-500/50"></div>
+            </label>
+          </div>
         </div>
 
         <!-- Preferences Section -->
@@ -904,8 +974,8 @@
   </div>
 
   <!-- ==================== ADMIN/MOD MODAL ==================== -->
-  <div id="admin-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center p-4">
-    <div class="w-full max-w-4xl p-6 rounded-3xl bg-sidebarBg border border-red-500/30 shadow-[0_0_60px_-15px_rgba(239,68,68,0.15)] flex flex-col max-h-[90vh]">
+  <div id="admin-modal" class="hidden fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+    <div class="w-full max-w-4xl p-6 rounded-[32px] bg-sidebarBg border border-red-500/30 shadow-[0_0_60px_-15px_rgba(239,68,68,0.15)] flex flex-col max-h-[90vh]">
       <div class="flex-shrink-0 flex items-center justify-between mb-5 border-b border-white/5 pb-5">
         <h2 id="admin-modal-title" class="text-xl font-bold text-red-400 flex items-center gap-2 tracking-tight">
           <i data-lucide="shield-alert" class="w-6 h-6"></i> Control Panel
@@ -1064,6 +1134,26 @@
 
   <!-- ==================== NEW MODALS ==================== -->
   
+  <!-- UI EDIT CONTEXT MENU -->
+  <div id="ui-edit-context-menu" class="hidden fixed z-[200] w-56 bg-sidebarBg/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden py-1 text-sm transition-opacity">
+    <div class="px-3 py-2 border-b border-white/5 mb-1 bg-white/5 flex items-center justify-between">
+       <span class="text-[10px] font-bold text-textMuted uppercase tracking-widest" id="ui-edit-target-name">Target</span>
+       <i data-lucide="edit-3" class="w-3 h-3 text-textMuted"></i>
+    </div>
+    <button id="btn-edit-bg-color" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/10 transition-colors flex items-center gap-2">
+      <i data-lucide="paint-bucket" class="w-4 h-4 text-primary"></i> Background Color
+    </button>
+    <button id="btn-edit-text-color" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/10 transition-colors flex items-center gap-2">
+      <i data-lucide="type" class="w-4 h-4 text-primary"></i> Text Color
+    </button>
+    <div class="h-px bg-white/5 my-1"></div>
+    <button id="btn-edit-reset" class="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-2">
+      <i data-lucide="rotate-ccw" class="w-4 h-4 text-red-400"></i> Reset Style
+    </button>
+  </div>
+  <input type="color" id="hidden-bg-color-picker" class="hidden" />
+  <input type="color" id="hidden-text-color-picker" class="hidden" />
+
   <!-- REACTION MODAL -->
   <div id="reaction-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeReactionModal()"></div>
@@ -1163,8 +1253,15 @@
     // User Settings loaded from local storage
     let appSettings = {
       notifications: localStorage.getItem('chat_notifications') !== 'false',
-      avatarTheme: localStorage.getItem('chat_avatar_theme') === 'true'
+      avatarTheme: localStorage.getItem('chat_avatar_theme') === 'true',
+      immersiveBg: localStorage.getItem('chat_immersive_bg') === 'true',
+      uiEditMode: localStorage.getItem('chat_ui_edit_mode') === 'true'
     };
+    let customPanelStyles = JSON.parse(localStorage.getItem('chat_custom_panel_styles') || '{}');
+
+    if (appSettings.immersiveBg) {
+        document.body.classList.add('immersive-mode');
+    }
     
     let activeChatId = 'global';
     let activeTab = 'channel'; 
@@ -2280,6 +2377,8 @@
     document.getElementById('btn-open-settings').addEventListener('click', () => {
       document.getElementById('toggle-notifications').checked = appSettings.notifications;
       document.getElementById('toggle-avatar-theme').checked = appSettings.avatarTheme;
+      document.getElementById('toggle-immersive-bg').checked = appSettings.immersiveBg;
+      document.getElementById('toggle-ui-edit').checked = appSettings.uiEditMode;
       document.getElementById('settings-modal').classList.remove('hidden');
       closeSidebarMobile();
       if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -2333,6 +2432,24 @@
         if (isEnabled && window.applyAvatarTheme) {
             window.applyAvatarTheme();
         }
+    });
+
+    document.getElementById('toggle-immersive-bg').addEventListener('change', (e) => {
+        const isEnabled = e.target.checked;
+        appSettings.immersiveBg = isEnabled;
+        localStorage.setItem('chat_immersive_bg', isEnabled);
+        
+        if (isEnabled) {
+            document.body.classList.add('immersive-mode');
+        } else {
+            document.body.classList.remove('immersive-mode');
+        }
+    });
+
+    document.getElementById('toggle-ui-edit').addEventListener('change', (e) => {
+        const isEnabled = e.target.checked;
+        appSettings.uiEditMode = isEnabled;
+        localStorage.setItem('chat_ui_edit_mode', isEnabled);
     });
 
     window.applyAvatarTheme = function() {
@@ -5910,6 +6027,123 @@
             });
         } catch(e) { console.error(e); }
     }
+
+    // --- UI EDIT MODE LOGIC ---
+    function applyCustomPanelStyles() {
+        for (const [selector, styles] of Object.entries(customPanelStyles)) {
+            const el = document.querySelector(selector);
+            if (el) {
+                if (styles.bgColor) el.style.setProperty('background-color', styles.bgColor, 'important');
+                if (styles.textColor) el.style.setProperty('color', styles.textColor, 'important');
+            }
+        }
+    }
+    // Apply saved styles immediately
+    applyCustomPanelStyles();
+
+    const uiContextMenu = document.getElementById('ui-edit-context-menu');
+    const uiTargetNameEl = document.getElementById('ui-edit-target-name');
+    const bgPicker = document.getElementById('hidden-bg-color-picker');
+    const textPicker = document.getElementById('hidden-text-color-picker');
+    let activeEditTarget = null;
+    let activeEditSelector = null;
+
+    // Define structural elements that can be styled
+    const editableSelectors = [
+        '#sidebar', 
+        'header', 
+        '#messages-container', 
+        '#chat-input-wrapper', 
+        '#game-container',
+        '#chat-list',
+        '#form-send-message'
+    ];
+
+    document.addEventListener('contextmenu', (e) => {
+        if (!appSettings.uiEditMode) return;
+
+        let targetEl = null;
+        let matchedSelector = null;
+
+        for (const sel of editableSelectors) {
+            const el = e.target.closest(sel);
+            if (el) {
+                targetEl = el;
+                matchedSelector = sel;
+                break; // Stop at the closest matched element
+            }
+        }
+
+        if (targetEl) {
+            e.preventDefault();
+            activeEditTarget = targetEl;
+            activeEditSelector = matchedSelector;
+            
+            uiTargetNameEl.textContent = matchedSelector.replace('#', '').replace('.', '').toUpperCase();
+            
+            let x = e.clientX;
+            let y = e.clientY;
+            
+            uiContextMenu.classList.remove('hidden');
+            
+            // Boundary checks
+            const rect = uiContextMenu.getBoundingClientRect();
+            if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 5;
+            if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 5;
+            
+            uiContextMenu.style.left = `${x}px`;
+            uiContextMenu.style.top = `${y}px`;
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!uiContextMenu.contains(e.target)) {
+            uiContextMenu.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('btn-edit-bg-color').addEventListener('click', () => {
+        uiContextMenu.classList.add('hidden');
+        bgPicker.click();
+    });
+
+    document.getElementById('btn-edit-text-color').addEventListener('click', () => {
+        uiContextMenu.classList.add('hidden');
+        textPicker.click();
+    });
+
+    document.getElementById('btn-edit-reset').addEventListener('click', () => {
+        uiContextMenu.classList.add('hidden');
+        if (activeEditTarget && activeEditSelector) {
+            activeEditTarget.style.removeProperty('background-color');
+            activeEditTarget.style.removeProperty('color');
+            delete customPanelStyles[activeEditSelector];
+            localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
+        }
+    });
+
+    bgPicker.addEventListener('input', (e) => {
+        if (activeEditTarget && activeEditSelector) {
+            const color = e.target.value;
+            const colorWithAlpha = color + 'e6'; // Adds ~90% opacity to preserve frosted glass aesthetics
+            activeEditTarget.style.setProperty('background-color', colorWithAlpha, 'important');
+            
+            if (!customPanelStyles[activeEditSelector]) customPanelStyles[activeEditSelector] = {};
+            customPanelStyles[activeEditSelector].bgColor = colorWithAlpha;
+            localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
+        }
+    });
+
+    textPicker.addEventListener('input', (e) => {
+        if (activeEditTarget && activeEditSelector) {
+            const color = e.target.value;
+            activeEditTarget.style.setProperty('color', color, 'important');
+            
+            if (!customPanelStyles[activeEditSelector]) customPanelStyles[activeEditSelector] = {};
+            customPanelStyles[activeEditSelector].textColor = color;
+            localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
+        }
+    });
 
     // --- PWA IMPLEMENTATION ---
     ;(function setupPWA() {
