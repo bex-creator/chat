@@ -167,6 +167,8 @@
 <body class="bg-mainBg text-slate-200 font-sans overflow-hidden antialiased selection:bg-primary/30">
 
   <div id="global-theme-bg" class="fixed inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-500 opacity-0"></div>
+  <div id="chat-custom-bg-element" class="fixed inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-500 opacity-0 hidden"></div>
+  <div id="chat-custom-bg-overlay" class="fixed inset-0 z-0 pointer-events-none bg-mainBg/40 backdrop-blur-sm transition-opacity duration-500 opacity-0 hidden"></div>
   <script>
       let currentT = window.appThemes[localStorage.getItem('chat_theme') || 'indigo'] || window.appThemes.indigo;
       if (currentT.isDynamic) currentT = getDynamicThemeData();
@@ -365,13 +367,13 @@
   </div>
 
   <!-- 4. MAIN APP SCREEN -->
-  <div id="app-screen" class="hidden flex h-screen w-full overflow-hidden">
+  <div id="app-screen" class="hidden flex h-screen w-full overflow-hidden relative z-10">
     
     <!-- Mobile Sidebar Overlay -->
     <div id="mobile-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden lg:hidden transition-opacity"></div>
 
     <!-- Sidebar -->
-    <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 transform -translate-x-full transition-transform duration-300 ease-out lg:relative lg:translate-x-0 flex flex-col bg-sidebarBg border-r border-border shadow-2xl lg:shadow-none">
+    <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-72 transform -translate-x-full transition-transform duration-300 ease-out lg:relative lg:translate-x-0 flex flex-col bg-sidebarBg/70 backdrop-blur-2xl border-r border-border shadow-2xl lg:shadow-none">
       <div class="flex items-center justify-between p-5 border-b border-border h-[72px]">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-primary to-indigo-600 shadow-md shadow-primary/20">
@@ -446,7 +448,7 @@
 
     <!-- Main Chat Area -->
     <div class="flex-1 flex flex-col h-full min-w-0 bg-pattern relative">
-      <header class="flex items-center justify-between px-6 h-[72px] border-b border-border flex-shrink-0 backdrop-blur-xl bg-mainBg/80 z-10 shadow-sm shadow-black/20">
+      <header class="flex items-center justify-between px-6 h-[72px] border-b border-border flex-shrink-0 backdrop-blur-2xl bg-mainBg/50 z-10 shadow-sm shadow-black/20">
         <div class="flex items-center gap-4 min-w-0">
           <button id="btn-open-sidebar" class="lg:hidden text-textMuted hover:text-white flex-shrink-0 relative p-1.5 -ml-1.5 rounded-lg hover:bg-white/5 transition-colors">
             <i data-lucide="menu" class="w-6 h-6"></i>
@@ -480,10 +482,6 @@
         </div>
       </header>
 
-      <!-- Chat Background Layer -->
-      <div id="chat-custom-bg-element" class="absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-500 opacity-0 hidden"></div>
-      <div id="chat-custom-bg-overlay" class="absolute inset-0 z-0 pointer-events-none bg-mainBg/80 transition-opacity duration-500 opacity-0 hidden"></div>
-
       <div id="messages-container" class="flex-1 overflow-y-auto p-6 flex flex-col custom-scrollbar relative z-10">
         <!-- Messages injected here -->
       </div>
@@ -493,7 +491,7 @@
         <iframe id="game-iframe" class="w-full h-full border-none" src="" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
       </div>
 
-      <div id="chat-input-wrapper" class="p-4 bg-mainBg z-10 relative">
+      <div id="chat-input-wrapper" class="p-4 bg-mainBg/50 backdrop-blur-2xl z-10 relative border-t border-white/5">
         
         <!-- Chat Image Preview -->
         <div id="chat-image-preview-container" class="hidden absolute bottom-full left-4 mb-2">
@@ -867,6 +865,17 @@
                <button id="btn-custom-theme" onclick="applyTheme('custom')" class="hidden w-8 h-8 rounded-full bg-cover bg-center shadow-lg border-2 border-transparent focus:border-white transition-all shrink-0" title="Your Custom Theme"></button>
             </div>
           </div>
+
+          <div class="flex items-center justify-between p-4 mt-3 bg-inputBg rounded-2xl border border-white/5">
+            <div class="flex flex-col">
+              <span class="text-slate-100 text-sm font-semibold">Match UI to Avatar</span>
+              <span class="text-xs text-textMuted mt-0.5">Automatically theme the app using your profile picture</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggle-avatar-theme" class="sr-only peer">
+              <div class="w-11 h-6 bg-black/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary ring-1 ring-white/10 peer-checked:ring-primary/50"></div>
+            </label>
+          </div>
         </div>
 
         <!-- Preferences Section -->
@@ -1153,7 +1162,8 @@
     
     // User Settings loaded from local storage
     let appSettings = {
-      notifications: localStorage.getItem('chat_notifications') !== 'false'
+      notifications: localStorage.getItem('chat_notifications') !== 'false',
+      avatarTheme: localStorage.getItem('chat_avatar_theme') === 'true'
     };
     
     let activeChatId = 'global';
@@ -2008,8 +2018,14 @@
         if (userName) {
           const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
           if (myProfile) {
+            const oldPhotoURL = currentPhotoURL;
             currentPhotoURL = myProfile.photoURL || firebaseUser.photoURL || 'https://via.placeholder.com/150';
             document.getElementById('sidebar-user-img').src = currentPhotoURL;
+
+            // Trigger theme update if the photo changed and the setting is active
+            if (oldPhotoURL !== currentPhotoURL && appSettings.avatarTheme) {
+                if (window.applyAvatarTheme) window.applyAvatarTheme();
+            }
 
             const updatedRole = myRole();
             const nickEl = document.getElementById('sidebar-nickname');
@@ -2263,6 +2279,7 @@
 
     document.getElementById('btn-open-settings').addEventListener('click', () => {
       document.getElementById('toggle-notifications').checked = appSettings.notifications;
+      document.getElementById('toggle-avatar-theme').checked = appSettings.avatarTheme;
       document.getElementById('settings-modal').classList.remove('hidden');
       closeSidebarMobile();
       if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -2307,6 +2324,39 @@
           localStorage.setItem('chat_notifications', false);
       }
     });
+
+    document.getElementById('toggle-avatar-theme').addEventListener('change', (e) => {
+        const isEnabled = e.target.checked;
+        appSettings.avatarTheme = isEnabled;
+        localStorage.setItem('chat_avatar_theme', isEnabled);
+        
+        if (isEnabled && window.applyAvatarTheme) {
+            window.applyAvatarTheme();
+        }
+    });
+
+    window.applyAvatarTheme = function() {
+        if (currentPhotoURL && !currentPhotoURL.includes('via.placeholder.com')) {
+            getDominantColor(currentPhotoURL, (colors) => {
+                if (colors) {
+                    const customTheme = {
+                        p: colors.p,
+                        ph: colors.ph,
+                        bg: window.appThemes.custom ? window.appThemes.custom.bg : null
+                    };
+                    window.appThemes.custom = customTheme;
+                    localStorage.setItem('chat_custom_theme', JSON.stringify(customTheme));
+                    applyTheme('custom');
+                    
+                    const btnCustomTheme = document.getElementById('btn-custom-theme');
+                    if (btnCustomTheme) {
+                        btnCustomTheme.style.borderColor = customTheme.p;
+                        btnCustomTheme.classList.remove('hidden');
+                    }
+                }
+            });
+        }
+    };
 
     document.getElementById('btn-settings-logout').addEventListener('click', () => signOut(auth));
     document.getElementById('btn-banned-logout').addEventListener('click', () => signOut(auth));
@@ -3313,12 +3363,12 @@
             // Allow display block to apply before animating opacity
             setTimeout(() => {
                 bgElement.classList.remove('opacity-0');
-                bgElement.classList.add('opacity-40');
+                bgElement.classList.add('opacity-100');
                 bgOverlay.classList.remove('opacity-0');
                 bgOverlay.classList.add('opacity-100');
             }, 50);
         } else {
-            bgElement.classList.remove('opacity-40');
+            bgElement.classList.remove('opacity-100');
             bgElement.classList.add('opacity-0');
             bgOverlay.classList.remove('opacity-100');
             bgOverlay.classList.add('opacity-0');
