@@ -1641,6 +1641,24 @@
           fetchedChats['global'] = globalChat;
           setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', 'global'), globalChat);
         }
+
+        // Ensure Nexus AI DM exists for the current user
+        if (userName) {
+            const nexusDmId = `nexus_dm_${userName.toLowerCase()}`;
+            if (!fetchedChats[nexusDmId]) {
+                const nexusDm = { 
+                    id: nexusDmId, 
+                    name: 'Nexus AI', 
+                    type: 'dm', 
+                    participants: [userName, 'nexus_ai'], 
+                    isPrivate: true,
+                    nexusActive: true
+                };
+                fetchedChats[nexusDmId] = nexusDm;
+                setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', nexusDmId), nexusDm).catch(()=>{});
+            }
+        }
+        
         allChats = fetchedChats;
         
         if (activeChatId !== 'global' && (!allChats[activeChatId] || !hasChatAccess(allChats[activeChatId]))) {
@@ -1708,6 +1726,19 @@
           knownUsers.push(doc.id); 
           allAppUsers.push({ id: doc.id, ...doc.data() });
         });
+        
+        // Register Nexus as a virtual user if not already in DB
+        if (!knownUsers.includes('nexus_ai')) {
+            knownUsers.push('nexus_ai');
+            allAppUsers.push({
+                id: 'nexus_ai',
+                username: 'nexus_ai',
+                nickname: 'Nexus AI',
+                photoURL: 'https://api.dicebear.com/7.x/bottts/svg?seed=Nexus&backgroundColor=6366f1',
+                presence: 'online',
+                role: 'AI'
+            });
+        }
         
         if (userName) {
           const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
@@ -2664,6 +2695,20 @@
           msgInput.style.height = '44px';
           btnSendMsg.classList.add('hidden');
           
+          if (activeChatId.startsWith('nexus_dm_')) {
+              const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
+                  chatId: activeChatId,
+                  text: "I can't be stopped here! This is our private DM. 😉",
+                  sender: 'nexus_ai',
+                  senderNickname: 'Nexus AI',
+                  createdAt: Date.now(),
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  senderPhoto: 'https://api.dicebear.com/7.x/bottts/svg?seed=Nexus&backgroundColor=6366f1'
+              });
+              return;
+          }
+
           if (activeChat?.nexusActive) {
               await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
                   nexusActive: false
@@ -2808,7 +2853,10 @@
                     return `${senderName}: ${m.text || '[Attachment]'}`;
                 }).join('\n');
 
-                const systemPrompt = "You are Nexus, a helpful, witty, and friendly AI assistant who is a participant in this chat room. You are currently in active conversation mode with the users. Keep responses concise, natural, and conversational. Do not sound like a generic bot. Use markdown for emphasis if needed.";
+                const isDM = chatId.startsWith('nexus_dm_');
+                const systemPrompt = isDM 
+                    ? "You are Nexus, a helpful, witty, and friendly AI assistant. You are currently in a private Direct Message with the user. Keep responses natural, helpful, and conversational. Use markdown for emphasis if needed."
+                    : "You are Nexus, a helpful, witty, and friendly AI assistant who is a participant in this chat room. You are currently in active conversation mode with the users. Keep responses concise, natural, and conversational. Do not sound like a generic bot. Use markdown for emphasis if needed.";
                 const query = `Chat Context:\n${context}\n\nPlease respond naturally to the ongoing conversation.`;
 
                 let responseText = await callPollinationsAPI(query, systemPrompt);
@@ -2829,7 +2877,8 @@
                 console.error("Nexus Bot Error:", e);
             } finally {
                 updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId), {
-                    [`typing.nexus_ai`]: 0
+                    [`typing.nexus_ai`]: 0,
+                    [`lastRead.nexus_ai`]: Date.now()
                 }).catch(e => {});
                 delete window.nexusTimeouts[chatId];
             }
