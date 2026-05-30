@@ -226,12 +226,6 @@
           globalBg.style.backgroundImage = currentT.bg;
           globalBg.classList.remove('opacity-0');
           globalBg.classList.add('opacity-20');
-          
-          // Pre-apply to login screen before it renders
-          document.addEventListener("DOMContentLoaded", () => {
-             const loginBg = document.getElementById('login-bg-element');
-             if (loginBg) loginBg.style.backgroundImage = currentT.bg;
-          });
       }
   </script>
 
@@ -273,7 +267,7 @@
   <!-- 2. LOGIN SCREEN -->
   <div id="login-screen" class="hidden flex h-screen w-full items-center justify-center relative">
     <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div id="login-bg-element" class="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 transition-all duration-1000"></div>
+        <div id="login-bg-element" class="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-50 transition-all duration-1000" style="background-image: url('https://t4.ftcdn.net/jpg/13/80/07/97/360_F_1380079720_ezzVCiKuoGr5vObzznpje5gdkaIIKMsI.jpg');"></div>
         <div class="absolute inset-0 bg-gradient-to-t from-mainBg via-mainBg/80 to-transparent"></div>
         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/30 rounded-full blur-[120px] opacity-60"></div>
     </div>
@@ -1143,6 +1137,13 @@
     <button id="btn-edit-bg-color" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/10 transition-colors flex items-center gap-2">
       <i data-lucide="paint-bucket" class="w-4 h-4 text-primary"></i> Background Color
     </button>
+    <div class="px-3 py-1.5 flex flex-col gap-1 border-b border-white/5 pb-2">
+        <label class="text-[11px] text-textMuted flex justify-between">
+            <span>Background Opacity</span>
+            <span id="ui-edit-opacity-val">90%</span>
+        </label>
+        <input type="range" id="ui-edit-opacity-slider" min="0" max="100" value="90" class="w-full accent-primary cursor-pointer" />
+    </div>
     <button id="btn-edit-text-color" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/10 transition-colors flex items-center gap-2">
       <i data-lucide="type" class="w-4 h-4 text-primary"></i> Text Color
     </button>
@@ -1328,17 +1329,14 @@
         document.documentElement.style.setProperty('--theme-primary-hover', t.ph);
         
         const globalBg = document.getElementById('global-theme-bg');
-        const loginBg = document.getElementById('login-bg-element');
         
         if (t.bg) {
             globalBg.style.backgroundImage = t.bg;
             globalBg.classList.remove('opacity-0');
             globalBg.classList.add('opacity-20');
-            if (loginBg) loginBg.style.backgroundImage = t.bg;
         } else {
             globalBg.classList.remove('opacity-20');
             globalBg.classList.add('opacity-0');
-            if (loginBg) loginBg.style.backgroundImage = 'none';
         }
         
         localStorage.setItem('chat_theme', name);
@@ -2450,6 +2448,11 @@
         const isEnabled = e.target.checked;
         appSettings.uiEditMode = isEnabled;
         localStorage.setItem('chat_ui_edit_mode', isEnabled);
+        if (isEnabled) {
+            applyCustomPanelStyles();
+        } else {
+            removeCustomPanelStyles();
+        }
     });
 
     window.applyAvatarTheme = function() {
@@ -6029,22 +6032,53 @@
     }
 
     // --- UI EDIT MODE LOGIC ---
+    function hexToRGBA(hex, opacityPct) {
+        let r = 0, g = 0, b = 0;
+        hex = hex.replace('#', '');
+        if (hex.length === 3) {
+            r = parseInt(hex[0] + hex[0], 16);
+            g = parseInt(hex[1] + hex[1], 16);
+            b = parseInt(hex[2] + hex[2], 16);
+        } else if (hex.length === 6) {
+            r = parseInt(hex.substring(0, 2), 16);
+            g = parseInt(hex.substring(2, 4), 16);
+            b = parseInt(hex.substring(4, 6), 16);
+        }
+        return `rgba(${r}, ${g}, ${b}, ${opacityPct / 100})`;
+    }
+
     function applyCustomPanelStyles() {
         for (const [selector, styles] of Object.entries(customPanelStyles)) {
             const el = document.querySelector(selector);
             if (el) {
-                if (styles.bgColor) el.style.setProperty('background-color', styles.bgColor, 'important');
+                if (styles.bgColorHex !== undefined && styles.bgOpacity !== undefined) {
+                    el.style.setProperty('background-color', hexToRGBA(styles.bgColorHex, styles.bgOpacity), 'important');
+                } else if (styles.bgColor) {
+                    // Fallback for older saves
+                    el.style.setProperty('background-color', styles.bgColor, 'important');
+                }
+                
                 if (styles.textColor) el.style.setProperty('color', styles.textColor, 'important');
             }
         }
     }
-    // Apply saved styles immediately
-    applyCustomPanelStyles();
+
+    function removeCustomPanelStyles() {
+        for (const selector of editableSelectors) {
+            const el = document.querySelector(selector);
+            if (el) {
+                el.style.removeProperty('background-color');
+                el.style.removeProperty('color');
+            }
+        }
+    }
 
     const uiContextMenu = document.getElementById('ui-edit-context-menu');
     const uiTargetNameEl = document.getElementById('ui-edit-target-name');
     const bgPicker = document.getElementById('hidden-bg-color-picker');
     const textPicker = document.getElementById('hidden-text-color-picker');
+    const opacitySlider = document.getElementById('ui-edit-opacity-slider');
+    const opacityValLabel = document.getElementById('ui-edit-opacity-val');
     let activeEditTarget = null;
     let activeEditSelector = null;
 
@@ -6058,6 +6092,11 @@
         '#chat-list',
         '#form-send-message'
     ];
+
+    // Apply saved styles immediately on load if edit mode is active
+    if (appSettings.uiEditMode) {
+        applyCustomPanelStyles();
+    }
 
     document.addEventListener('contextmenu', (e) => {
         if (!appSettings.uiEditMode) return;
@@ -6081,6 +6120,21 @@
             
             uiTargetNameEl.textContent = matchedSelector.replace('#', '').replace('.', '').toUpperCase();
             
+            // Populate current values in the menu
+            if (customPanelStyles[matchedSelector]) {
+                 const styles = customPanelStyles[matchedSelector];
+                 if (styles.bgColorHex) bgPicker.value = styles.bgColorHex;
+                 
+                 let op = 90;
+                 if (styles.bgOpacity !== undefined) op = styles.bgOpacity;
+                 
+                 opacitySlider.value = op;
+                 opacityValLabel.textContent = `${op}%`;
+            } else {
+                 opacitySlider.value = 90;
+                 opacityValLabel.textContent = '90%';
+            }
+
             let x = e.clientX;
             let y = e.clientY;
             
@@ -6103,7 +6157,6 @@
     });
 
     document.getElementById('btn-edit-bg-color').addEventListener('click', () => {
-        uiContextMenu.classList.add('hidden');
         bgPicker.click();
     });
 
@@ -6124,12 +6177,33 @@
 
     bgPicker.addEventListener('input', (e) => {
         if (activeEditTarget && activeEditSelector) {
-            const color = e.target.value;
-            const colorWithAlpha = color + 'e6'; // Adds ~90% opacity to preserve frosted glass aesthetics
-            activeEditTarget.style.setProperty('background-color', colorWithAlpha, 'important');
-            
+            const colorHex = e.target.value;
             if (!customPanelStyles[activeEditSelector]) customPanelStyles[activeEditSelector] = {};
-            customPanelStyles[activeEditSelector].bgColor = colorWithAlpha;
+            
+            const currentOpacity = customPanelStyles[activeEditSelector].bgOpacity !== undefined ? customPanelStyles[activeEditSelector].bgOpacity : 90;
+            
+            customPanelStyles[activeEditSelector].bgColorHex = colorHex;
+            customPanelStyles[activeEditSelector].bgOpacity = currentOpacity;
+            
+            activeEditTarget.style.setProperty('background-color', hexToRGBA(colorHex, currentOpacity), 'important');
+            localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
+        }
+    });
+
+    opacitySlider.addEventListener('input', (e) => {
+        const val = e.target.value;
+        opacityValLabel.textContent = `${val}%`;
+
+        if (activeEditTarget && activeEditSelector) {
+            if (!customPanelStyles[activeEditSelector]) customPanelStyles[activeEditSelector] = {};
+            
+            // Default to black if they haven't picked a color yet
+            const hex = customPanelStyles[activeEditSelector].bgColorHex || '#000000';
+            
+            customPanelStyles[activeEditSelector].bgColorHex = hex;
+            customPanelStyles[activeEditSelector].bgOpacity = val;
+            
+            activeEditTarget.style.setProperty('background-color', hexToRGBA(hex, val), 'important');
             localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
         }
     });
