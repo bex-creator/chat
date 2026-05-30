@@ -1147,6 +1147,13 @@
     <button id="btn-edit-text-color" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/10 transition-colors flex items-center gap-2">
       <i data-lucide="type" class="w-4 h-4 text-primary"></i> Text Color
     </button>
+    <div class="px-3 py-1.5 flex flex-col gap-1 border-b border-white/5 pb-2">
+        <label class="text-[11px] text-textMuted flex justify-between">
+            <span>Text Readability Shadow</span>
+            <span id="ui-edit-shadow-val">0px</span>
+        </label>
+        <input type="range" id="ui-edit-shadow-slider" min="0" max="20" value="0" class="w-full accent-primary cursor-pointer" />
+    </div>
     <div class="h-px bg-white/5 my-1"></div>
     <button id="btn-edit-reset" class="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-2">
       <i data-lucide="rotate-ccw" class="w-4 h-4 text-red-400"></i> Reset Style
@@ -6059,6 +6066,10 @@
                 }
                 
                 if (styles.textColor) el.style.setProperty('color', styles.textColor, 'important');
+
+                if (styles.textShadow !== undefined && styles.textShadow > 0) {
+                    el.style.setProperty('text-shadow', `0 1px 2px rgba(0,0,0,0.9), 0 0 ${styles.textShadow}px rgba(0,0,0,1), 0 0 ${styles.textShadow * 1.5}px rgba(0,0,0,0.8)`, 'important');
+                }
             }
         }
     }
@@ -6069,6 +6080,7 @@
             if (el) {
                 el.style.removeProperty('background-color');
                 el.style.removeProperty('color');
+                el.style.removeProperty('text-shadow');
             }
         }
     }
@@ -6079,6 +6091,8 @@
     const textPicker = document.getElementById('hidden-text-color-picker');
     const opacitySlider = document.getElementById('ui-edit-opacity-slider');
     const opacityValLabel = document.getElementById('ui-edit-opacity-val');
+    const shadowSlider = document.getElementById('ui-edit-shadow-slider');
+    const shadowValLabel = document.getElementById('ui-edit-shadow-val');
     let activeEditTarget = null;
     let activeEditSelector = null;
 
@@ -6130,9 +6144,16 @@
                  
                  opacitySlider.value = op;
                  opacityValLabel.textContent = `${op}%`;
+
+                 let shad = 0;
+                 if (styles.textShadow !== undefined) shad = styles.textShadow;
+                 shadowSlider.value = shad;
+                 shadowValLabel.textContent = `${shad}px`;
             } else {
                  opacitySlider.value = 90;
                  opacityValLabel.textContent = '90%';
+                 shadowSlider.value = 0;
+                 shadowValLabel.textContent = '0px';
             }
 
             let x = e.clientX;
@@ -6170,6 +6191,7 @@
         if (activeEditTarget && activeEditSelector) {
             activeEditTarget.style.removeProperty('background-color');
             activeEditTarget.style.removeProperty('color');
+            activeEditTarget.style.removeProperty('text-shadow');
             delete customPanelStyles[activeEditSelector];
             localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
         }
@@ -6215,6 +6237,25 @@
             
             if (!customPanelStyles[activeEditSelector]) customPanelStyles[activeEditSelector] = {};
             customPanelStyles[activeEditSelector].textColor = color;
+            localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
+        }
+    });
+
+    shadowSlider.addEventListener('input', (e) => {
+        const val = e.target.value;
+        shadowValLabel.textContent = `${val}px`;
+
+        if (activeEditTarget && activeEditSelector) {
+            if (!customPanelStyles[activeEditSelector]) customPanelStyles[activeEditSelector] = {};
+            
+            customPanelStyles[activeEditSelector].textShadow = parseInt(val);
+            
+            if (val > 0) {
+                activeEditTarget.style.setProperty('text-shadow', `0 1px 2px rgba(0,0,0,0.9), 0 0 ${val}px rgba(0,0,0,1), 0 0 ${val * 1.5}px rgba(0,0,0,0.8)`, 'important');
+            } else {
+                activeEditTarget.style.removeProperty('text-shadow');
+            }
+            
             localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
         }
     });
