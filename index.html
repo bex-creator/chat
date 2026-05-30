@@ -470,6 +470,7 @@
             <div class="flex flex-col min-w-0">
               <span class="font-bold text-sm text-slate-100 truncate flex items-center gap-1.5 tracking-tight">
                 <span id="sidebar-nickname"></span>
+                <span id="sidebar-level-badge" class="hidden text-[9px] bg-black/40 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-md font-black tracking-tighter shadow-sm"></span>
                 <span id="sidebar-dev-badge" class="hidden text-[9px] px-1.5 rounded font-black tracking-tighter"></span>
               </span>
               <span id="sidebar-username-display" class="text-[11px] font-medium text-textMuted truncate"></span>
@@ -477,6 +478,9 @@
             </div>
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
+            <button id="btn-open-leaderboard" class="text-yellow-500 hover:text-yellow-400 transition-colors p-2.5 rounded-xl hover:bg-yellow-500/10" title="Leaderboard">
+              <i data-lucide="trophy" class="w-[18px] h-[18px]"></i>
+            </button>
             <button id="btn-open-panel" class="hidden transition-colors p-2.5 rounded-xl" title="Control Panel">
               <!-- Icon injected via JS based on role -->
             </button>
@@ -1187,6 +1191,23 @@
     </div>
   </div>
 
+  <!-- LEADERBOARD MODAL -->
+  <div id="leaderboard-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-yellow-500/30 shadow-[0_0_60px_-15px_rgba(234,179,8,0.2)] flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i data-lucide="trophy" class="w-6 h-6 text-yellow-500"></i> Global Leaderboard
+            </h2>
+            <button onclick="closeLeaderboardModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div id="leaderboard-container" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            <!-- Leaderboard injected here -->
+        </div>
+    </div>
+  </div>
+
   <!-- ==================== SCRIPT ==================== -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -1283,6 +1304,7 @@
         { id: 'game_tictactoe', name: 'Tic Tac Toe', desc: 'Classic 2-player multiplayer', icon: 'grid', isMultiplayer: true },
         { id: 'game_gridtag', name: 'Grid Tag', desc: 'Turn-based pursuit on a 5x5 board', icon: 'target', isMultiplayer: true },
         { id: 'game_rps', name: 'Rock Paper Scissors', desc: 'Classic mind games', icon: 'hand', isMultiplayer: true },
+        { id: 'game_drawguess', name: 'Draw & Guess', desc: 'Pictionary style drawing game', icon: 'pen-tool', isMultiplayer: true },
         { id: 'game_jhk', name: 'JHK Game', url: 'https://bex-creator.github.io/jhk/', desc: 'Single-player web game', icon: 'gamepad-2' }
     ];
     
@@ -1302,6 +1324,25 @@
 
     // Subscriptions
     let unsubChats, unsubMsgs, unsubUsers, unsubReceipts;
+
+    // --- XP & LEVEL SYSTEM HELPER FUNCTIONS ---
+    window.getLevel = function(xp) {
+        return Math.floor(Math.sqrt((xp || 0) / 10)) + 1;
+    }
+
+    async function awardXP(username, amount) {
+        if (!username) return;
+        try {
+            const userRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', username.toLowerCase());
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const currentXp = userSnap.data().xp || 0;
+                await updateDoc(userRef, { xp: currentXp + amount });
+            }
+        } catch (e) {
+            console.error("Failed to award XP:", e);
+        }
+    }
 
     // --- ROLE HELPER FUNCTIONS ---
     function getUserRole(email, uname) {
@@ -2161,6 +2202,10 @@
                 }
             }
             
+            const levelBadge = document.getElementById('sidebar-level-badge');
+            levelBadge.textContent = `Lv.${window.getLevel(myProfile.xp)}`;
+            levelBadge.classList.remove('hidden');
+
             userColor = myProfile.nameColor || '#ffffff';
             
             const statusTextEl = document.getElementById('sidebar-status-text');
@@ -3238,6 +3283,12 @@
           handleNexusBotResponse(activeChatId);
       }
 
+      // Award XP for sending a message (max once every 10 seconds to prevent spam)
+      if (!window.lastMessageXpTime || Date.now() - window.lastMessageXpTime > 10000) {
+          awardXP(userName, 2);
+          window.lastMessageXpTime = Date.now();
+      }
+
       // Auto-Moderation Hook
       if (text && !isAdmin()) {
           evaluateMessage(msgId, text);
@@ -3989,6 +4040,9 @@
                   bubbleStyle = `style="border: 2px solid ${senderProfile.nameColor}; box-shadow: inset 0 0 10px ${senderProfile.nameColor}20, 0 0 10px ${senderProfile.nameColor}40;"`;
               }
 
+              const level = window.getLevel(senderProfile?.xp);
+              const levelBadge = !isNexus ? `<span class="text-[9px] bg-black/40 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded font-black tracking-tighter shadow-sm mr-1 ml-1.5">Lv.${level}</span>` : '';
+
               // Jumbo Emoji Check (Only emojis, no attachments, no replies)
               const isJumboEmoji = msg.text && !msg.imageUrl && !msg.audioUrl && !msg.isPoll && !msg.isSystem && !msg.replyTo && /^[\p{Extended_Pictographic}\p{Regional_Indicator}\u200d\ufe0f\s]+$/u.test(msg.text);
               
@@ -4021,6 +4075,7 @@
                         <div class="flex items-center gap-1.5">
                           ${pinnedBadge}
                           <span class="font-bold text-[13px] tracking-tight ${nameClass}" ${nameStyle}>${isMe ? 'You' : displaySender}</span>
+                          ${levelBadge}
                           ${safeStatus ? `<span class="text-[10px] bg-black/40 border border-white/5 text-slate-300 px-2 py-0.5 rounded-lg truncate max-w-[130px] font-medium" title="${safeStatus}">${safeStatus}</span>` : ''}
                           ${roleBadge}
                           ${deletedBadge}
@@ -5120,6 +5175,7 @@
             nameStyle = `style="color: ${u.nameColor}; text-shadow: 0 0 10px ${u.nameColor}40;"`;
         }
 
+        const levelBadge = `<span class="text-[9px] bg-black/40 text-yellow-400 border border-yellow-500/20 px-1 rounded font-black tracking-tighter shadow-sm mr-1 ml-1.5">Lv.${window.getLevel(u.xp)}</span>`;
         const displayName = u.nickname ? `${u.nickname} <span class="text-xs font-normal text-textMuted ml-1">(@${u.username})</span>` : `@${u.username}`;
 
         return `
@@ -5130,12 +5186,13 @@
                 <div class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-sidebarBg ${pColor}"></div>
               </div>
               <div>
-                <p class="font-bold flex items-center gap-2 text-[14px] ${nameClass}" ${nameStyle}>
+                <p class="font-bold flex items-center gap-1 text-[14px] ${nameClass}" ${nameStyle}>
                   ${displayName} 
+                  ${levelBadge}
                   ${isMe ? '<span class="text-[10px] font-bold tracking-widest uppercase bg-primary/20 text-indigo-300 px-2 py-0.5 rounded-md border border-primary/30 text-slate-100">You</span>' : ''}
                   ${badge}
                 </p>
-                <p class="text-xs font-medium mt-0.5 ${suspended ? 'text-red-400/80' : 'text-textMuted'}">${subtitle}</p>
+                <p class="text-xs font-medium mt-0.5 ${suspended ? 'text-red-400/80' : 'text-textMuted'}">${subtitle} • ${u.xp || 0} XP</p>
               </div>
             </div>
             <div class="flex items-center gap-1.5 ml-auto">
@@ -5394,6 +5451,55 @@
         document.getElementById('pinned-modal').classList.add('hidden');
     }
 
+    // Leaderboard Logic
+    document.getElementById('btn-open-leaderboard').addEventListener('click', () => {
+        window.renderLeaderboard();
+        document.getElementById('leaderboard-modal').classList.remove('hidden');
+    });
+
+    window.closeLeaderboardModal = function() {
+        document.getElementById('leaderboard-modal').classList.add('hidden');
+    }
+
+    window.renderLeaderboard = function() {
+        const container = document.getElementById('leaderboard-container');
+        const sortedUsers = allAppUsers
+            .filter(u => !u.deleted && u.id !== 'nexus_ai')
+            .sort((a, b) => (b.xp || 0) - (a.xp || 0));
+
+        if (sortedUsers.length === 0) {
+            container.innerHTML = '<div class="text-center text-textMuted py-8">No users found.</div>';
+            return;
+        }
+
+        container.innerHTML = sortedUsers.map((u, idx) => {
+            const level = window.getLevel(u.xp);
+            let rankMedal = `<span class="w-6 text-center font-bold text-slate-400">#${idx + 1}</span>`;
+            if (idx === 0) rankMedal = `<i data-lucide="medal" class="w-5 h-5 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]"></i>`;
+            else if (idx === 1) rankMedal = `<i data-lucide="medal" class="w-5 h-5 text-slate-300 drop-shadow-[0_0_8px_rgba(203,213,225,0.8)]"></i>`;
+            else if (idx === 2) rankMedal = `<i data-lucide="medal" class="w-5 h-5 text-amber-600 drop-shadow-[0_0_8px_rgba(217,119,6,0.8)]"></i>`;
+
+            const photo = u.photoURL || 'https://via.placeholder.com/150';
+            const nameColorStyle = u.nameColor && u.nameColor !== '#ffffff' ? `color: ${u.nameColor}; text-shadow: 0 0 10px ${u.nameColor}40;` : '';
+
+            return `
+                <div class="flex items-center gap-3 p-3 bg-black/20 border border-white/5 rounded-2xl hover:bg-white/5 transition-colors">
+                    <div class="w-6 flex justify-center flex-shrink-0">${rankMedal}</div>
+                    <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-white/10 bg-inputBg" />
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-white truncate" style="${nameColorStyle}">${u.nickname || u.username}</div>
+                        <div class="text-[11px] text-textMuted font-medium truncate">@${u.username}</div>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-yellow-400 font-black text-sm drop-shadow-sm">Lv.${level}</span>
+                        <span class="text-[10px] text-slate-400 font-medium">${u.xp || 0} XP</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
     // Role & Color Assignment 
     window.assignUserRole = async function(userId, newRole) {
         if (!isAdmin()) {
@@ -5531,6 +5637,12 @@
             initData.p1Move = null;
             initData.p2Move = null;
             initData.turn = 'both'; 
+        } else if (type === 'drawguess') {
+            const words = ['apple', 'house', 'tree', 'cat', 'dog', 'car', 'sun', 'star', 'moon', 'flower', 'fish', 'bird', 'boat', 'airplane', 'train', 'clock', 'key', 'door', 'chair', 'table', 'hat', 'shoe', 'pizza', 'robot', 'ghost'];
+            initData.wordToDraw = words[Math.floor(Math.random() * words.length)];
+            initData.strokes = '[]';
+            initData.lastGuess = null;
+            initData.turn = userName;
         }
 
         try {
@@ -5578,6 +5690,8 @@
             renderGridTag();
         } else if (activeGameData.gameType === 'rps') {
             renderRPS();
+        } else if (activeGameData.gameType === 'drawguess') {
+            renderDrawGuess();
         } else {
             container.innerHTML = `<div class="flex h-full items-center justify-center text-red-400 font-medium">Unknown Game Type</div>`;
         }
@@ -5624,10 +5738,8 @@
             const cursorClass = canPlay ? 'cursor-pointer hover:bg-white/10 active:scale-95' : 'cursor-default';
             const colorClass = cell === 'X' ? 'text-rose-500' : 'text-cyan-500';
             
-            // Draw winning line logic (rough approximation visually)
             let winClass = '';
             if (session.status === 'finished' && session.winner !== 'draw' && cell !== '') {
-                // If this cell was part of the winning line, we'd normally highlight it. For simplicity, just make filled cells pop a bit more.
                 winClass = 'opacity-100 drop-shadow-[0_0_15px_currentColor] scale-105';
             } else if (session.status === 'finished') {
                 winClass = 'opacity-50';
@@ -5639,11 +5751,9 @@
 
         container.innerHTML = `
             <div class="flex-1 flex flex-col items-center justify-center p-6 text-center w-full h-full bg-pattern overflow-y-auto">
-                
                 <div class="w-full max-w-lg mx-auto ${headerGlow} border rounded-3xl p-6 transition-all duration-500">
                     <h2 class="text-2xl font-bold text-white tracking-tight mb-2">Tic Tac Toe</h2>
                     <p class="text-[15px] mb-8">${statusText}</p>
-                    
                     <div class="flex items-center justify-center gap-4 sm:gap-8 mb-2">
                         <div class="flex flex-col items-center flex-1">
                             <span class="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-2">Player X</span>
@@ -5651,9 +5761,7 @@
                                 ${session.creator === userName ? 'You' : `@${session.creator}`}
                             </div>
                         </div>
-                        
                         <div class="text-2xl font-black text-white/20 italic">VS</div>
-                        
                         <div class="flex flex-col items-center flex-1">
                             <span class="text-[10px] font-bold text-cyan-500 uppercase tracking-widest mb-2">Player O</span>
                             <div class="bg-black/50 px-4 py-3 rounded-2xl border ${session.opponent && session.turn === session.opponent && session.status === 'playing' ? 'border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-white/5'} transition-all w-full max-w-[140px] truncate font-semibold ${!session.opponent ? 'text-textMuted italic' : 'text-slate-200'}">
@@ -5662,17 +5770,12 @@
                         </div>
                     </div>
                 </div>
-
                 ${boardHTML}
-
                 <div class="flex flex-wrap items-center justify-center gap-3 w-full max-w-[400px]">
                     ${session.status === 'waiting' && isCreator ? `<button onclick="openModal('share_game', '${session.id}', 'tictactoe')" class="flex-1 min-w-[140px] py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="share-2" class="w-4 h-4"></i> Invite Friend</button>` : ''}
-                    
                     ${session.status === 'finished' && isPlayer ? `<button onclick="resetTTTGame('${session.id}')" class="flex-1 min-w-[140px] py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Play Again</button>` : ''}
-                    
                     <button onclick="selectChat('game_tictactoe')" class="flex-1 min-w-[140px] py-3.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2">Leave Match</button>
                 </div>
-                
             </div>
         `;
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -5686,11 +5789,10 @@
         const isCreator = userName === activeGameData.creator;
         newBoard[index] = isCreator ? 'X' : 'O';
 
-        // Check win
         const lines = [
-            [0,1,2], [3,4,5], [6,7,8], // rows
-            [0,3,6], [1,4,7], [2,5,8], // cols
-            [0,4,8], [2,4,6]           // diagonals
+            [0,1,2], [3,4,5], [6,7,8], 
+            [0,3,6], [1,4,7], [2,5,8], 
+            [0,4,8], [2,4,6]           
         ];
         
         let winner = null;
@@ -5714,6 +5816,17 @@
             nextTurn = isCreator ? activeGameData.opponent : activeGameData.creator;
         }
 
+        if (newStatus === 'finished') {
+            if (winner === 'draw') {
+                awardXP(activeGameData.creator, 10);
+                awardXP(activeGameData.opponent, 10);
+            } else {
+                const loser = winner === activeGameData.creator ? activeGameData.opponent : activeGameData.creator;
+                awardXP(winner, 20);
+                awardXP(loser, 5);
+            }
+        }
+
         try {
             await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
                 board: newBoard,
@@ -5729,7 +5842,7 @@
         try {
             await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
                 board: ['', '', '', '', '', '', '', '', ''],
-                turn: activeGameData.creator, // Creator goes first on reset
+                turn: activeGameData.creator, 
                 status: 'playing',
                 winner: null
             });
@@ -5744,9 +5857,6 @@
         const isCreator = session.creator === userName;
         const isOpponent = session.opponent === userName;
         const isPlayer = isCreator || isOpponent;
-
-        const isRunner = session.runner === userName;
-        const isChaser = session.chaser === userName;
 
         let statusText = '';
         let headerGlow = 'border-white/5';
@@ -5822,9 +5932,7 @@
                         </div>
                     </div>
                 </div>
-
                 ${boardHTML}
-
                 <div class="flex flex-wrap items-center justify-center gap-3 w-full max-w-[400px]">
                     ${session.status === 'waiting' && isCreator ? `<button onclick="openModal('share_game', '${session.id}', 'gridtag')" class="flex-1 min-w-[140px] py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="share-2" class="w-4 h-4"></i> Invite Friend</button>` : ''}
                     ${session.status === 'finished' && isPlayer ? `<button onclick="resetGridTagGame('${session.id}')" class="flex-1 min-w-[140px] py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Play Again</button>` : ''}
@@ -5863,6 +5971,13 @@
             updates.winner = session.runner;
         }
 
+        if (updates.status === 'finished') {
+             const winner = updates.winner;
+             const loser = winner === session.runner ? session.chaser : session.runner;
+             awardXP(winner, 20);
+             awardXP(loser, 5);
+        }
+
         try {
             await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), updates);
         } catch(e) { console.error(e); }
@@ -5875,7 +5990,7 @@
                 runnerPos: 0,
                 chaserPos: 24,
                 turnsLeft: 15,
-                turn: activeGameData.runner, // Runner starts again
+                turn: activeGameData.runner, 
                 status: 'playing',
                 winner: null
             });
@@ -5964,7 +6079,6 @@
                 <div class="w-full max-w-lg mx-auto ${headerGlow} border rounded-3xl p-6 transition-all duration-500">
                     <h2 class="text-2xl font-bold text-white tracking-tight mb-2">Rock Paper Scissors</h2>
                     <p class="text-[15px] mb-4">${statusText}</p>
-                    
                     <div class="flex items-center justify-center gap-4 sm:gap-8 mb-2">
                         <div class="flex flex-col items-center flex-1">
                             <span class="text-[10px] font-bold text-textMuted uppercase tracking-widest mb-2">Player 1</span>
@@ -5981,9 +6095,7 @@
                         </div>
                     </div>
                 </div>
-
                 ${playAreaHTML}
-
                 <div class="flex flex-wrap items-center justify-center gap-3 w-full max-w-[400px]">
                     ${session.status === 'waiting' && isCreator ? `<button onclick="openModal('share_game', '${session.id}', 'rps')" class="flex-1 min-w-[140px] py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="share-2" class="w-4 h-4"></i> Invite Friend</button>` : ''}
                     ${session.status === 'finished' && isPlayer ? `<button onclick="resetRPSGame('${session.id}')" class="flex-1 min-w-[140px] py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Play Again</button>` : ''}
@@ -6019,6 +6131,15 @@
             } else {
                 updates.winner = session.opponent;
             }
+
+            if (updates.winner === 'draw') {
+                awardXP(session.creator, 10);
+                awardXP(session.opponent, 10);
+            } else {
+                const loser = updates.winner === session.creator ? session.opponent : session.creator;
+                awardXP(updates.winner, 20);
+                awardXP(loser, 5);
+            }
         }
 
         try {
@@ -6036,6 +6157,304 @@
                 winner: null
             });
         } catch(e) { console.error(e); }
+    }
+
+    // --- DRAW & GUESS ENGINE ---
+    window.renderDrawGuess = function() {
+        const container = document.getElementById('game-container');
+        const session = activeGameData;
+
+        const isCreator = session.creator === userName;
+        const isOpponent = session.opponent === userName;
+        const isPlayer = isCreator || isOpponent;
+        const isDrawer = session.turn === userName;
+
+        if (!document.getElementById('drawguess-wrapper')) {
+            container.innerHTML = `
+                <div id="drawguess-wrapper" class="flex-1 flex flex-col items-center justify-center p-6 text-center w-full h-full bg-pattern overflow-y-auto">
+                    <div id="drawguess-header" class="w-full max-w-lg mx-auto border border-white/5 bg-black/40 rounded-3xl p-6 transition-all duration-500 mb-6">
+                        <h2 class="text-2xl font-bold text-white tracking-tight mb-2">Draw & Guess</h2>
+                        <p id="drawguess-status" class="text-[15px] mb-4"></p>
+                    </div>
+
+                    <div class="relative bg-inputBg border border-white/10 rounded-2xl p-2 shadow-2xl mb-4">
+                        <canvas id="draw-canvas" width="400" height="300" class="bg-white rounded-xl touch-none w-full max-w-[400px] h-auto object-contain cursor-crosshair"></canvas>
+                        
+                        <div id="drawguess-toolbox" class="hidden flex-wrap justify-center gap-2 mt-4">
+                            <button onclick="window.dgColor='#000000'" class="w-8 h-8 rounded-full bg-black border-2 border-white/20 hover:scale-110 transition-transform"></button>
+                            <button onclick="window.dgColor='#ef4444'" class="w-8 h-8 rounded-full bg-red-500 border-2 border-white/20 hover:scale-110 transition-transform"></button>
+                            <button onclick="window.dgColor='#3b82f6'" class="w-8 h-8 rounded-full bg-blue-500 border-2 border-white/20 hover:scale-110 transition-transform"></button>
+                            <button onclick="window.dgColor='#22c55e'" class="w-8 h-8 rounded-full bg-green-500 border-2 border-white/20 hover:scale-110 transition-transform"></button>
+                            <button onclick="window.dgColor='#eab308'" class="w-8 h-8 rounded-full bg-yellow-500 border-2 border-white/20 hover:scale-110 transition-transform"></button>
+                            <button onclick="window.dgColor='#ffffff'" class="w-8 h-8 rounded-full bg-white border-2 border-gray-400 hover:scale-110 transition-transform" title="Eraser"></button>
+                            <button onclick="clearDrawGuess()" class="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors ml-2">CLEAR</button>
+                        </div>
+                    </div>
+
+                    <div id="drawguess-guesser-ui" class="hidden flex flex-col items-center gap-3 w-full max-w-[400px] mb-6">
+                        <div class="flex gap-2 w-full">
+                            <input type="text" id="drawguess-input" placeholder="Type your guess here..." class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary transition-colors" />
+                            <button onclick="submitDrawGuess()" class="px-6 bg-primary hover:bg-primaryHover text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">Guess</button>
+                        </div>
+                    </div>
+
+                    <div id="drawguess-last-guess" class="text-sm font-medium h-8 mb-4"></div>
+
+                    <div id="drawguess-actions" class="flex flex-wrap items-center justify-center gap-3 w-full max-w-[400px]">
+                    </div>
+                </div>
+            `;
+            setupDrawGuessEvents();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        const statusEl = document.getElementById('drawguess-status');
+        const headerEl = document.getElementById('drawguess-header');
+        const toolbox = document.getElementById('drawguess-toolbox');
+        const guesserUI = document.getElementById('drawguess-guesser-ui');
+        const lastGuessEl = document.getElementById('drawguess-last-guess');
+        const actionsEl = document.getElementById('drawguess-actions');
+
+        if (session.status === 'waiting') {
+            statusEl.innerHTML = '<span class="text-amber-400 font-bold animate-pulse">Waiting for an opponent...</span>';
+            headerEl.className = 'w-full max-w-lg mx-auto border border-amber-500/30 bg-amber-500/5 rounded-3xl p-6 transition-all duration-500 mb-6';
+            toolbox.classList.add('hidden');
+            toolbox.classList.remove('flex');
+            guesserUI.classList.add('hidden');
+        } else if (session.status === 'playing') {
+            if (isDrawer) {
+                statusEl.innerHTML = `You are drawing: <span class="text-yellow-400 font-black text-lg uppercase tracking-widest">${session.wordToDraw}</span>`;
+                headerEl.className = 'w-full max-w-lg mx-auto border border-emerald-500/30 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.15)] rounded-3xl p-6 transition-all duration-500 mb-6';
+                toolbox.classList.remove('hidden');
+                toolbox.classList.add('flex');
+                guesserUI.classList.add('hidden');
+            } else {
+                statusEl.innerHTML = `Guess what <span class="text-white font-bold">@${session.turn}</span> is drawing!`;
+                headerEl.className = 'w-full max-w-lg mx-auto border border-indigo-500/20 bg-indigo-500/5 rounded-3xl p-6 transition-all duration-500 mb-6';
+                toolbox.classList.add('hidden');
+                toolbox.classList.remove('flex');
+                guesserUI.classList.remove('hidden');
+            }
+        } else if (session.status === 'finished') {
+            toolbox.classList.add('hidden');
+            toolbox.classList.remove('flex');
+            guesserUI.classList.add('hidden');
+            if (session.winner === userName) {
+                statusEl.innerHTML = `<span class='text-yellow-400 font-bold text-lg'>🎉 You got it! The word was ${session.wordToDraw}!</span>`;
+                headerEl.className = 'w-full max-w-lg mx-auto border border-yellow-500/40 bg-yellow-500/10 shadow-[0_0_40px_rgba(234,179,8,0.2)] rounded-3xl p-6 transition-all duration-500 mb-6';
+            } else {
+                statusEl.innerHTML = `<span class='text-emerald-400 font-bold'>Match Over! The word was <span class="text-white uppercase">${session.wordToDraw}</span>.</span>`;
+                headerEl.className = 'w-full max-w-lg mx-auto border border-emerald-500/30 bg-emerald-500/5 rounded-3xl p-6 transition-all duration-500 mb-6';
+            }
+        }
+
+        if (session.lastGuess) {
+            if (session.lastGuess.isCorrect) {
+                lastGuessEl.innerHTML = `<span class="text-emerald-400 font-bold">@${session.lastGuess.sender} guessed correctly!</span>`;
+            } else {
+                lastGuessEl.innerHTML = `<span class="text-red-400">@${session.lastGuess.sender} guessed: <span class="line-through">${session.lastGuess.text}</span></span>`;
+            }
+        } else {
+            lastGuessEl.innerHTML = '';
+        }
+
+        let actionBtns = '';
+        if (session.status === 'waiting' && isCreator) {
+            actionBtns += `<button onclick="openModal('share_game', '${session.id}', 'drawguess')" class="flex-1 min-w-[140px] py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="share-2" class="w-4 h-4"></i> Invite Friend</button>`;
+        }
+        if (session.status === 'finished' && isPlayer) {
+            actionBtns += `<button onclick="resetDrawGuessGame('${session.id}')" class="flex-1 min-w-[140px] py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Play Again</button>`;
+        }
+        actionBtns += `<button onclick="selectChat('game_drawguess')" class="flex-1 min-w-[140px] py-3.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2">Leave Match</button>`;
+        
+        actionsEl.innerHTML = actionBtns;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        redrawCanvasFromSession();
+    };
+
+    window.dgColor = '#000000';
+    
+    function setupDrawGuessEvents() {
+        const canvas = document.getElementById('draw-canvas');
+        if (!canvas) return;
+
+        window.isDrawing = false;
+        window.currentStroke = [];
+
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function startStroke(e) {
+            if (!activeGameData || activeGameData.status !== 'playing' || activeGameData.turn !== userName) return;
+            e.preventDefault();
+            window.isDrawing = true;
+            window.currentStroke = [getCoords(e)];
+        }
+
+        function moveStroke(e) {
+            if (!window.isDrawing) return;
+            e.preventDefault();
+            const point = getCoords(e);
+            window.currentStroke.push(point);
+            
+            const ctx = canvas.getContext('2d');
+            ctx.beginPath();
+            ctx.strokeStyle = window.dgColor;
+            ctx.lineWidth = window.dgColor === '#ffffff' ? 20 : 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            const prev = window.currentStroke[window.currentStroke.length - 2];
+            ctx.moveTo(prev.x, prev.y);
+            ctx.lineTo(point.x, point.y);
+            ctx.stroke();
+        }
+
+        async function endStroke() {
+            if (!window.isDrawing) return;
+            window.isDrawing = false;
+            
+            if (window.currentStroke.length > 0 && activeGameData) {
+                const strokes = JSON.parse(activeGameData.strokes || '[]');
+                strokes.push({
+                    color: window.dgColor,
+                    width: window.dgColor === '#ffffff' ? 20 : 4,
+                    points: window.currentStroke
+                });
+                
+                try {
+                    await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', activeGameData.id), {
+                        strokes: JSON.stringify(strokes)
+                    });
+                } catch(e) { console.error("Error saving stroke", e); }
+            }
+            window.currentStroke = [];
+        }
+
+        canvas.addEventListener('mousedown', startStroke);
+        canvas.addEventListener('mousemove', moveStroke);
+        canvas.addEventListener('mouseup', endStroke);
+        canvas.addEventListener('mouseleave', endStroke);
+
+        canvas.addEventListener('touchstart', startStroke, {passive: false});
+        canvas.addEventListener('touchmove', moveStroke, {passive: false});
+        canvas.addEventListener('touchend', endStroke);
+        canvas.addEventListener('touchcancel', endStroke);
+
+        const input = document.getElementById('drawguess-input');
+        if (input) {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submitDrawGuess();
+            });
+        }
+    }
+
+    window.redrawCanvasFromSession = function() {
+        const canvas = document.getElementById('draw-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const session = activeGameData;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const remoteStrokes = JSON.parse(session.strokes || '[]');
+        
+        remoteStrokes.forEach(stroke => {
+            if (!stroke.points || stroke.points.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = stroke.color || '#000000';
+            ctx.lineWidth = stroke.width || 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            for(let i=1; i<stroke.points.length; i++) {
+                ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+            }
+            ctx.stroke();
+        });
+
+        if (window.isDrawing && window.currentStroke.length > 0) {
+            ctx.beginPath();
+            ctx.strokeStyle = window.dgColor;
+            ctx.lineWidth = window.dgColor === '#ffffff' ? 20 : 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.moveTo(window.currentStroke[0].x, window.currentStroke[0].y);
+            for(let i=1; i<window.currentStroke.length; i++) {
+                ctx.lineTo(window.currentStroke[i].x, window.currentStroke[i].y);
+            }
+            ctx.stroke();
+        }
+    }
+
+    window.submitDrawGuess = async function() {
+        const input = document.getElementById('drawguess-input');
+        if (!input) return;
+        const guess = input.value.trim();
+        if (!guess || !activeGameData) return;
+        
+        input.value = '';
+        
+        const session = activeGameData;
+        const isCorrect = guess.toLowerCase() === session.wordToDraw.toLowerCase();
+
+        let updates = {
+            lastGuess: { sender: userName, text: guess, isCorrect }
+        };
+
+        if (isCorrect) {
+            updates.status = 'finished';
+            updates.winner = userName;
+            awardXP(userName, 20); 
+            awardXP(session.turn, 10); 
+        }
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', session.id), updates);
+        } catch(e) { console.error(e); }
+    }
+
+    window.clearDrawGuess = async function() {
+        if (!activeGameData || activeGameData.status !== 'playing' || activeGameData.turn !== userName) return;
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', activeGameData.id), {
+                strokes: '[]'
+            });
+        } catch(e) { console.error(e); }
+    }
+
+    window.resetDrawGuessGame = async function(sessionId) {
+        if (!activeGameData || activeGameData.id !== sessionId) return;
+        
+        const words = ['apple', 'house', 'tree', 'cat', 'dog', 'car', 'sun', 'star', 'moon', 'flower', 'fish', 'bird', 'boat', 'airplane', 'train', 'clock', 'key', 'door', 'chair', 'table', 'hat', 'shoe', 'pizza', 'robot', 'ghost'];
+        const newWord = words[Math.floor(Math.random() * words.length)];
+        
+        const nextTurn = activeGameData.turn === activeGameData.creator ? activeGameData.opponent : activeGameData.creator;
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                status: 'playing',
+                winner: null,
+                wordToDraw: newWord,
+                strokes: '[]',
+                lastGuess: null,
+                turn: nextTurn
+            });
+        } catch(e) { console.error("Error resetting match", e); }
     }
 
     // --- UI EDIT MODE LOGIC ---
