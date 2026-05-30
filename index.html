@@ -2443,6 +2443,8 @@
     let recordingInterval;
     let recordingSeconds = 0;
     const MAX_RECORDING_SECONDS = 60; // Max 1 minute to prevent large payloads
+    let recognition;
+    let currentTranscript = "";
 
     document.getElementById('btn-record-audio').addEventListener('click', async () => {
         if (plusContainer) plusContainer.classList.add('hidden');
@@ -2458,6 +2460,24 @@
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
+            currentTranscript = "";
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.onresult = (event) => {
+                    let finalTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript + ' ';
+                        }
+                    }
+                    currentTranscript += finalTranscript;
+                };
+                try { recognition.start(); } catch(e){}
+            }
 
             mediaRecorder.ondataavailable = e => {
                 if (e.data.size > 0) audioChunks.push(e.data);
@@ -2465,12 +2485,13 @@
 
             mediaRecorder.onstop = () => {
                 stream.getTracks().forEach(track => track.stop()); // Free mic
+                if (recognition) { try { recognition.stop(); } catch(e){} }
                 if (audioChunks.length > 0 && !window.isCancelingRecording) {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     const reader = new FileReader();
                     reader.onloadend = async () => {
                         const base64Audio = reader.result;
-                        await sendAudioMessage(base64Audio);
+                        await sendAudioMessage(base64Audio, currentTranscript);
                     };
                     reader.readAsDataURL(audioBlob);
                 }
@@ -2520,7 +2541,7 @@
         document.getElementById('recording-overlay').classList.add('hidden');
     }
 
-    async function sendAudioMessage(base64Audio) {
+    async function sendAudioMessage(base64Audio, transcript = "") {
         if (!firebaseUser) return;
         const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const msgRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId);
@@ -2533,6 +2554,7 @@
             chatId: activeChatId,
             text: '',
             audioUrl: base64Audio,
+            audioTranscript: transcript.trim(),
             replyTo: replyingTo || null,
             sender: userName,
             senderNickname: userNickname,
@@ -2728,7 +2750,36 @@
       if (shouldTriggerBot) {
           handleNexusBotResponse(activeChatId);
       }
+
+      // Auto-Moderation Hook
+      if (text && !isAdmin()) {
+          evaluateMessage(msgId, text);
+      }
     });
+
+    // --- NEXUS AUTO MODERATION ---
+    async function evaluateMessage(msgId, text) {
+        if (isAdmin()) return; 
+        try {
+            const prompt = "Analyze this message for toxicity. Reply EXACTLY with one of these words: SAFE (normal), MILD (slightly rude/spam), SEVERE (highly toxic/slurs), EXTREME (illegal/threats). Do not include any other text. Message: " + text;
+            let result = await callPollinationsAPI(text, prompt);
+            result = result.trim().toUpperCase();
+            
+            if (result.includes("EXTREME")) {
+                await deleteDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId));
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                    suspension: { until: Date.now() + 3600000, reason: "Auto-Moderation: Extreme Toxicity", isPermanent: false, issuedAt: Date.now() },
+                    isBanned: false
+                });
+            } else if (result.includes("SEVERE")) {
+                await deleteDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId));
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), { muted: true });
+                showInAppNotification({sender: "Nexus AI", text: "Your message was deleted and you have been muted for severe toxicity."}, null);
+            } else if (result.includes("MILD")) {
+                showInAppNotification({sender: "Nexus AI", text: "Warning: Your recent message was flagged as potentially inappropriate."}, null);
+            }
+        } catch(e) { console.error("Auto-mod error", e); }
+    }
 
     // --- NEXUS BOT PERSONA ---
     window.nexusTimeouts = window.nexusTimeouts || {};
@@ -3332,10 +3383,13 @@
 
               // Normal text rendering
               const formattedText = msg.isPoll ? '' : formatMessageText(msg.text);
+              const translationHTML = msg.localTranslation ? `<div class="mt-2 text-[13px] text-cyan-200 bg-cyan-500/10 p-2.5 rounded-xl border border-cyan-500/20 shadow-inner"><i data-lucide="languages" class="w-3.5 h-3.5 inline mr-1 text-cyan-400"></i> ${formatMessageText(msg.localTranslation)}</div>` : '';
+              
               const attachedImageHTML = msg.imageUrl ? `<img src="${msg.imageUrl}" class="${msg.text ? 'mt-3' : ''} rounded-xl max-w-full h-auto max-h-72 object-contain border border-white/10 shadow-lg bg-black/20" alt="Attached image" loading="lazy" />` : '';
               
               // Voice Note Rendering
-              const attachedAudioHTML = msg.audioUrl ? `<div class="${msg.text || msg.imageUrl ? 'mt-3' : ''} bg-black/30 rounded-full pr-4 pl-1 py-1 border border-white/5 flex items-center w-fit min-w-[200px]"><audio controls src="${msg.audioUrl}" class="h-[36px] w-[240px] outline-none filter brightness-110 contrast-125 opacity-90 sepia-[.2] hue-rotate-[200deg]"></audio></div>` : '';
+              const transcriptHTML = msg.audioTranscript ? `<div class="text-[11px] text-slate-300/70 italic mt-2 px-2 max-w-[240px] leading-tight"><i data-lucide="file-text" class="w-3 h-3 inline mr-0.5 opacity-70"></i> ${msg.audioTranscript}</div>` : '';
+              const attachedAudioHTML = msg.audioUrl ? `<div class="${msg.text || msg.imageUrl ? 'mt-3' : ''} bg-black/30 rounded-3xl pr-4 pl-1 py-1 border border-white/5 flex flex-col w-fit min-w-[200px]"><audio controls src="${msg.audioUrl}" class="h-[36px] w-[240px] outline-none filter brightness-110 contrast-125 opacity-90 sepia-[.2] hue-rotate-[200deg]"></audio>${transcriptHTML}</div>` : '';
 
               // Game Invite Rendering
               let gameInviteHTML = '';
@@ -3471,6 +3525,11 @@
                             <button type="button" onclick="openReactionModal('${msg.id}')" class="text-textMuted hover:text-yellow-400 p-1 rounded-md hover:bg-white/5 transition-colors" title="Add Reaction">
                                <i data-lucide="smile-plus" class="w-3.5 h-3.5"></i>
                             </button>
+                            ${msg.text ? `
+                            <button type="button" onclick="translateMessage('${msg.id}')" class="text-textMuted hover:text-cyan-400 p-1 rounded-md hover:bg-white/5 transition-colors" title="Translate Message">
+                               <i data-lucide="languages" class="w-3.5 h-3.5"></i>
+                            </button>
+                            ` : ''}
                             ${(isAtLeastMod() || activeChat.creator === userName) ? `
                             <button type="button" onclick="togglePinMessage('${msg.id}')" class="text-textMuted hover:text-primary p-1 rounded-md hover:bg-white/5 transition-colors" title="${msg.pinned ? 'Unpin' : 'Pin'}">
                                <i data-lucide="pin" class="w-3.5 h-3.5"></i>
@@ -3492,7 +3551,7 @@
                         </div>
                       </div>
                       
-                      <div class="w-fit max-w-full ${finalMinWidth} ${finalPadding} ${finalTextSize} leading-relaxed text-slate-100 ${finalShadow} break-words whitespace-pre-wrap text-left ${finalBubbleClass}" ${bubbleStyle}>${replyBlockHTML}${formattedText}${pollHTML}${attachedImageHTML}${attachedAudioHTML}${gameInviteHTML}</div>
+                      <div class="w-fit max-w-full ${finalMinWidth} ${finalPadding} ${finalTextSize} leading-relaxed text-slate-100 ${finalShadow} break-words whitespace-pre-wrap text-left ${finalBubbleClass}" ${bubbleStyle}>${replyBlockHTML}${formattedText}${translationHTML}${pollHTML}${attachedImageHTML}${attachedAudioHTML}${gameInviteHTML}</div>
                       ${reactionsHTML}
                     </div>
                   </div>
@@ -4675,6 +4734,25 @@
     };
 
     // --- NEW FEATURE FUNCTIONS ---
+
+    window.translateMessage = async function(msgId) {
+        const msg = allMessages.find(m => m.id === msgId);
+        if (!msg || !msg.text) return;
+        
+        showInAppNotification({sender: "Nexus AI", text: "Translating message..."}, null);
+        
+        try {
+            const targetLang = navigator.language || 'English';
+            const prompt = `You are Nexus AI. Translate the following message into ${targetLang}. If it is already in ${targetLang}, translate it to English instead. Reply ONLY with the translated text without quotes.`;
+            let translated = await callPollinationsAPI(msg.text, prompt);
+            translated = translated.replace(/^"|"$/g, '').trim();
+            
+            msg.localTranslation = translated;
+            renderMessages();
+        } catch(e) {
+            alert("Translation failed.");
+        }
+    }
 
     // Typing Throttle
     let typingThrottle = null;
