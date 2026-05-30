@@ -7,17 +7,58 @@
   
   <!-- Pre-load Theme to prevent FOUC -->
   <script>
+    function getDynamicThemeData() {
+        const hour = new Date().getHours();
+        if (hour >= 5 && hour < 10) { // Morning
+            return { p: '#0ea5e9', ph: '#0284c7', bg: 'url("https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=2070&auto=format&fit=crop")' };
+        } else if (hour >= 10 && hour < 16) { // Day
+            return { p: '#10b981', ph: '#059669', bg: 'url("https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=2070&auto=format&fit=crop")' };
+        } else if (hour >= 16 && hour < 20) { // Sunset
+            return { p: '#f97316', ph: '#ea580c', bg: 'url("https://t4.ftcdn.net/jpg/13/80/07/97/360_F_1380079720_ezzVCiKuoGr5vObzznpje5gdkaIIKMsI.jpg")' };
+        } else { // Night
+            return { p: '#8b5cf6', ph: '#7c3aed', bg: 'url("https://images.unsplash.com/photo-1488866022504-f2584929ca5f?q=80&w=2062&auto=format&fit=crop")' };
+        }
+    }
+
+    function hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+    }
+
+    function applyTint(hex) {
+        const rgb = hexToRgb(hex);
+        if(!rgb) return;
+        const { r, g, b } = rgb;
+        // Blend the theme color into the dark slate base backgrounds
+        document.documentElement.style.setProperty('--theme-bg-main', `rgb(${Math.floor(5*0.90+r*0.10)}, ${Math.floor(6*0.90+g*0.10)}, ${Math.floor(10*0.90+b*0.10)})`);
+        document.documentElement.style.setProperty('--theme-bg-sidebar', `rgb(${Math.floor(11*0.88+r*0.12)}, ${Math.floor(14*0.88+g*0.12)}, ${Math.floor(20*0.88+b*0.12)})`);
+        document.documentElement.style.setProperty('--theme-bg-input', `rgb(${Math.floor(19*0.85+r*0.15)}, ${Math.floor(24*0.85+g*0.15)}, ${Math.floor(35*0.85+b*0.15)})`);
+        document.documentElement.style.setProperty('--theme-border', `rgb(${Math.floor(31*0.75+r*0.25)}, ${Math.floor(36*0.75+g*0.25)}, ${Math.floor(51*0.75+b*0.25)})`);
+    }
+
     const savedTheme = localStorage.getItem('chat_theme') || 'indigo';
-    const themes = {
+    window.appThemes = {
         indigo: { p: '#6366f1', ph: '#4f46e5' },
         emerald: { p: '#10b981', ph: '#059669' },
         rose: { p: '#f43f5e', ph: '#e11d48' },
         amber: { p: '#f59e0b', ph: '#d97706' },
-        cyan: { p: '#06b6d4', ph: '#0891b2' }
+        cyan: { p: '#06b6d4', ph: '#0891b2' },
+        landscape: { p: '#f97316', ph: '#ea580c', bg: 'url("https://t4.ftcdn.net/jpg/13/80/07/97/360_F_1380079720_ezzVCiKuoGr5vObzznpje5gdkaIIKMsI.jpg")' },
+        dynamic_time: { isDynamic: true }
     };
-    const t = themes[savedTheme] || themes.indigo;
+    
+    // Load custom theme if it exists
+    const customDataStr = localStorage.getItem('chat_custom_theme');
+    if (customDataStr) {
+        try { window.appThemes.custom = JSON.parse(customDataStr); } catch(e){}
+    }
+    
+    let t = window.appThemes[savedTheme] || window.appThemes.indigo;
+    if (t.isDynamic) t = getDynamicThemeData();
+
     document.documentElement.style.setProperty('--theme-primary', t.p);
     document.documentElement.style.setProperty('--theme-primary-hover', t.ph);
+    applyTint(t.p);
   </script>
 
   <!-- Google Fonts: Inter -->
@@ -41,12 +82,12 @@
             sans: ['Inter', 'system-ui', 'sans-serif'],
           },
           colors: {
-            sidebarBg: '#0B0E14', 
-            mainBg: '#05060A',
-            border: '#1F2433',
+            sidebarBg: 'var(--theme-bg-sidebar, #0B0E14)', 
+            mainBg: 'var(--theme-bg-main, #05060A)',
+            border: 'var(--theme-border, #1F2433)',
             primary: 'var(--theme-primary, #6366f1)',
             primaryHover: 'var(--theme-primary-hover, #4f46e5)',
-            inputBg: '#131823',
+            inputBg: 'var(--theme-bg-input, #131823)',
             textMuted: '#8B94A5'
           }
         }
@@ -142,6 +183,25 @@
 </head>
 <body class="bg-mainBg text-slate-200 font-sans overflow-hidden antialiased selection:bg-primary/30">
 
+  <div id="global-theme-bg" class="fixed inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-500 opacity-0"></div>
+  <script>
+      let currentT = window.appThemes[localStorage.getItem('chat_theme') || 'indigo'] || window.appThemes.indigo;
+      if (currentT.isDynamic) currentT = getDynamicThemeData();
+
+      if (currentT.bg) {
+          const globalBg = document.getElementById('global-theme-bg');
+          globalBg.style.backgroundImage = currentT.bg;
+          globalBg.classList.remove('opacity-0');
+          globalBg.classList.add('opacity-20');
+          
+          // Pre-apply to login screen before it renders
+          document.addEventListener("DOMContentLoaded", () => {
+             const loginBg = document.getElementById('login-bg-element');
+             if (loginBg) loginBg.style.backgroundImage = currentT.bg;
+          });
+      }
+  </script>
+
   <!-- ==================== NOTIFICATION CONTAINER ==================== -->
   <div id="notification-container" class="fixed top-4 right-4 sm:top-auto sm:bottom-6 sm:right-6 z-[100] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none">
     <!-- Toasts injected here dynamically -->
@@ -179,8 +239,10 @@
 
   <!-- 2. LOGIN SCREEN -->
   <div id="login-screen" class="hidden flex h-screen w-full items-center justify-center relative">
-    <div class="absolute inset-0 overflow-hidden pointer-events-none">
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] opacity-50"></div>
+    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div id="login-bg-element" class="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 transition-all duration-1000"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-mainBg via-mainBg/80 to-transparent"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/30 rounded-full blur-[120px] opacity-60"></div>
     </div>
     
     <div class="w-full max-w-md p-10 rounded-3xl bg-sidebarBg/80 backdrop-blur-xl border border-white/5 flex flex-col items-center mx-4 text-center shadow-2xl relative z-10">
@@ -371,7 +433,7 @@
         <!-- Chat items injected here -->
       </div>
 
-      <div class="p-4 border-t border-border mt-auto bg-[#080B10]">
+      <div class="p-4 border-t border-border mt-auto bg-black/20">
         <div class="flex items-center justify-between">
           <div id="btn-edit-profile" class="flex items-center gap-3 cursor-pointer min-w-0 hover:bg-white/5 p-2.5 -ml-2 rounded-xl transition-all group border border-transparent hover:border-white/5" title="Edit Profile">
             <div id="sidebar-user-avatar-container" class="relative inline-block flex-shrink-0">
@@ -465,7 +527,7 @@
 
         <!-- Emoji Picker Container -->
         <div id="emoji-picker-container" class="hidden absolute bottom-full right-4 mb-2 z-50 shadow-2xl rounded-2xl overflow-hidden border border-border">
-            <emoji-picker class="dark" style="--background: #0B0E14; --border-color: #1F2433; --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: #1F2433; --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
+            <emoji-picker class="dark" style="--background: var(--theme-bg-sidebar, #0B0E14); --border-color: var(--theme-border, #1F2433); --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: var(--theme-border, #1F2433); --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
         </div>
 
         <!-- Plus Options Menu Container -->
@@ -802,6 +864,15 @@
                <button onclick="applyTheme('rose')" class="w-8 h-8 rounded-full bg-rose-500 shadow-lg border-2 border-transparent focus:border-white transition-all"></button>
                <button onclick="applyTheme('amber')" class="w-8 h-8 rounded-full bg-amber-500 shadow-lg border-2 border-transparent focus:border-white transition-all"></button>
                <button onclick="applyTheme('cyan')" class="w-8 h-8 rounded-full bg-cyan-500 shadow-lg border-2 border-transparent focus:border-white transition-all"></button>
+               <div class="w-px h-6 bg-white/20 mx-1"></div>
+               <button onclick="applyTheme('landscape')" class="w-8 h-8 rounded-full bg-[url('https://t4.ftcdn.net/jpg/13/80/07/97/360_F_1380079720_ezzVCiKuoGr5vObzznpje5gdkaIIKMsI.jpg')] bg-cover bg-center shadow-lg border-2 border-transparent focus:border-white transition-all" title="Sunset Theme"></button>
+               <button onclick="applyTheme('dynamic_time')" class="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 via-orange-400 to-indigo-800 shadow-lg border-2 border-transparent focus:border-white transition-all flex items-center justify-center text-white shrink-0" title="Auto Time of Day"><i data-lucide="clock" class="w-4 h-4"></i></button>
+               
+               <input type="file" id="custom-theme-input" accept="image/*" class="hidden" />
+               <button onclick="document.getElementById('custom-theme-input').click()" class="w-8 h-8 rounded-full bg-sidebarBg shadow-lg border-2 border-dashed border-white/40 hover:border-white focus:border-white transition-all flex items-center justify-center text-white/60 hover:text-white shrink-0" title="Upload Custom Background">
+                  <i data-lucide="upload" class="w-4 h-4"></i>
+               </button>
+               <button id="btn-custom-theme" onclick="applyTheme('custom')" class="hidden w-8 h-8 rounded-full bg-cover bg-center shadow-lg border-2 border-transparent focus:border-white transition-all shrink-0" title="Your Custom Theme"></button>
             </div>
           </div>
         </div>
@@ -996,7 +1067,7 @@
   <div id="reaction-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeReactionModal()"></div>
     <div class="relative bg-sidebarBg border border-border rounded-2xl shadow-2xl overflow-hidden p-2 animate-toast-in">
-        <emoji-picker class="dark" id="msg-emoji-picker" style="--background: #0B0E14; --border-color: #1F2433; --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: #1F2433; --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
+        <emoji-picker class="dark" id="msg-emoji-picker" style="--background: var(--theme-bg-sidebar, #0B0E14); --border-color: var(--theme-border, #1F2433); --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: var(--theme-border, #1F2433); --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
     </div>
   </div>
 
@@ -1149,11 +1220,151 @@
     }
 
     window.applyTheme = function(name) {
-        const t = themes[name] || themes.indigo;
+        let t = window.appThemes[name] || window.appThemes.indigo;
+        if (t.isDynamic) {
+            t = getDynamicThemeData();
+        }
+
         document.documentElement.style.setProperty('--theme-primary', t.p);
         document.documentElement.style.setProperty('--theme-primary-hover', t.ph);
+        
+        if (typeof applyTint === 'function') applyTint(t.p);
+
+        const globalBg = document.getElementById('global-theme-bg');
+        const loginBg = document.getElementById('login-bg-element');
+        
+        if (t.bg) {
+            globalBg.style.backgroundImage = t.bg;
+            globalBg.classList.remove('opacity-0');
+            globalBg.classList.add('opacity-20');
+            if (loginBg) loginBg.style.backgroundImage = t.bg;
+        } else {
+            globalBg.classList.remove('opacity-20');
+            globalBg.classList.add('opacity-0');
+            if (loginBg) loginBg.style.backgroundImage = 'none';
+        }
+        
         localStorage.setItem('chat_theme', name);
+
+        // Re-evaluate background priorities immediately when changing themes
+        if (typeof updateChatBackground === 'function' && typeof allChats !== 'undefined' && typeof activeChatId !== 'undefined') {
+            updateChatBackground(allChats[activeChatId]);
+        }
     };
+
+    // Auto-update dynamic theme if active
+    setInterval(() => {
+        if (localStorage.getItem('chat_theme') === 'dynamic_time') {
+            applyTheme('dynamic_time'); // Re-evaluates time and updates seamlessly
+        }
+    }, 60000);
+
+    function rgbToHex(r, g, b) {
+        return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+    }
+
+    function darkenRGB(r, g, b, percent) {
+        return rgbToHex(
+            Math.max(0, Math.floor(r * (1 - percent))),
+            Math.max(0, Math.floor(g * (1 - percent))),
+            Math.max(0, Math.floor(b * (1 - percent)))
+        );
+    }
+
+    // Initialize custom theme button visibility on load
+    const customThemeInput = document.getElementById('custom-theme-input');
+    const btnCustomTheme = document.getElementById('btn-custom-theme');
+    
+    if (window.appThemes.custom) {
+        btnCustomTheme.style.backgroundImage = window.appThemes.custom.bg;
+        btnCustomTheme.style.borderColor = window.appThemes.custom.p;
+        btnCustomTheme.classList.remove('hidden');
+    }
+
+    customThemeInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Show loading state on button
+        const uploadBtn = e.target.nextElementSibling;
+        const oldIcon = uploadBtn.innerHTML;
+        uploadBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Process image to a reasonable size for localStorage (Max 5MB)
+        processChatImageFile(file, (base64Str) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                let r = 0, g = 0, b = 0, count = 0;
+                try {
+                    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                    // Sample pixels to calculate average color
+                    for (let i = 0; i < data.length; i += 40) { 
+                        r += data[i];
+                        g += data[i+1];
+                        b += data[i+2];
+                        count++;
+                    }
+                } catch(err) {
+                    // Fallback if canvas read fails (e.g., cross-origin issues)
+                    r = 99; g = 102; b = 241; count = 1;
+                }
+                
+                if (count > 0) {
+                    r = Math.floor(r / count);
+                    g = Math.floor(g / count);
+                    b = Math.floor(b / count);
+                }
+                
+                // Boost color saturation/brightness to ensure it works well as an accent color
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                if (max - min < 20 && max < 200) { 
+                    r = 99; g = 102; b = 241; // Default to indigo if too gray
+                } else {
+                    const scale = Math.min(255 / max, 1.5); // Boost without washing out completely
+                    r = Math.min(255, Math.floor(r * scale));
+                    g = Math.min(255, Math.floor(g * scale));
+                    b = Math.min(255, Math.floor(b * scale));
+                }
+                
+                const primaryColor = rgbToHex(r, g, b);
+                const hoverColor = darkenRGB(r, g, b, 0.2);
+                
+                const customTheme = {
+                    p: primaryColor,
+                    ph: hoverColor,
+                    bg: `url('${base64Str}')`
+                };
+                
+                window.appThemes.custom = customTheme;
+                
+                try {
+                    localStorage.setItem('chat_custom_theme', JSON.stringify(customTheme));
+                    
+                    btnCustomTheme.style.backgroundImage = customTheme.bg;
+                    btnCustomTheme.style.borderColor = customTheme.p;
+                    btnCustomTheme.classList.remove('hidden');
+                    
+                    applyTheme('custom');
+                } catch(err) {
+                    alert("Image is too large to save as a theme. Please try a smaller file.");
+                }
+
+                uploadBtn.innerHTML = oldIcon;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+            img.src = base64Str;
+        });
+        
+        customThemeInput.value = '';
+    });
 
     // --- AUTO PRESENCE & VISIBILITY TRACKING (IMPROVED) ---
     let isTabVisible = document.visibilityState === 'visible';
@@ -3032,9 +3243,15 @@
         const bgElement = document.getElementById('chat-custom-bg-element');
         const bgOverlay = document.getElementById('chat-custom-bg-overlay');
         
-        if (activeChat && activeChat.chatBg) {
-            if (bgElement.style.backgroundImage !== `url("${activeChat.chatBg}")`) {
-                bgElement.style.backgroundImage = `url(${activeChat.chatBg})`;
+        let currentT = window.appThemes[localStorage.getItem('chat_theme') || 'indigo'] || window.appThemes.indigo;
+        if (currentT.isDynamic) currentT = getDynamicThemeData();
+
+        // If the user has a personal background theme set, it overrides the channel's background
+        const channelBgToUse = (currentT.bg) ? null : (activeChat ? activeChat.chatBg : null);
+
+        if (channelBgToUse) {
+            if (bgElement.style.backgroundImage !== `url("${channelBgToUse}")`) {
+                bgElement.style.backgroundImage = `url(${channelBgToUse})`;
             }
             bgElement.classList.remove('hidden');
             bgOverlay.classList.remove('hidden');
@@ -3054,7 +3271,7 @@
             
             // Hide entirely after transition
             setTimeout(() => {
-                if (!allChats[activeChatId]?.chatBg) {
+                if (bgElement.classList.contains('opacity-0')) {
                     bgElement.classList.add('hidden');
                     bgOverlay.classList.add('hidden');
                     bgElement.style.backgroundImage = 'none';
