@@ -528,6 +528,13 @@
         </div>
       </header>
 
+      <!-- AI TL;DR Banner -->
+      <div id="tldr-banner" class="hidden absolute top-[85px] left-1/2 -translate-x-1/2 z-[55] bg-primary/95 backdrop-blur-xl border border-white/20 px-4 py-2.5 rounded-2xl shadow-[0_10px_40px_rgba(99,102,241,0.3)] flex items-center gap-3 animate-toast-in">
+         <span class="text-white text-sm font-medium"><i data-lucide="sparkles" class="w-4 h-4 inline mr-1 text-yellow-300"></i> You missed <span id="tldr-count" class="font-bold">0</span> messages.</span>
+         <button onclick="generateTLDR()" class="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1.5 rounded-lg transition-colors font-bold shadow-sm active:scale-95">Catch Me Up</button>
+         <button onclick="document.getElementById('tldr-banner').classList.add('hidden')" class="text-white/70 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
       <div id="messages-container" class="flex-1 overflow-y-auto p-6 flex flex-col custom-scrollbar relative z-10">
         <!-- Messages injected here -->
       </div>
@@ -635,6 +642,11 @@
                 <span class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
                 <span class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
             </div>
+        </div>
+
+        <!-- Smart Replies Container -->
+        <div id="smart-replies-container" class="hidden max-w-4xl mx-auto flex flex-wrap gap-2 mb-3 px-3 z-0 relative">
+            <!-- Chips injected via JS -->
         </div>
 
         <form id="form-send-message" class="max-w-4xl mx-auto flex items-end gap-2 bg-sidebarBg/95 rounded-[28px] border border-white/10 focus-within:border-primary/50 focus-within:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all shadow-2xl p-2 relative z-10 overflow-hidden">
@@ -3400,6 +3412,25 @@
 
     // 4. RENDERING FUNCTIONS
     window.selectChat = function(id) {
+      // Feature 6: Check for unread messages before wiping the read receipt
+      const unreadTime = readReceipts[id] || 0;
+      const missedMsgs = allMessages.filter(m => m.chatId === id && m.createdAt > unreadTime && !m.deleted && m.sender.toLowerCase() !== userName.toLowerCase() && !m.isSystem && m.text);
+      
+      const banner = document.getElementById('tldr-banner');
+      if (missedMsgs.length >= 5 && !id.startsWith('game_') && !id.startsWith('session_')) {
+          document.getElementById('tldr-count').textContent = missedMsgs.length;
+          banner.innerHTML = `
+             <span class="text-white text-sm font-medium"><i data-lucide="sparkles" class="w-4 h-4 inline mr-1 text-yellow-300"></i> You missed <span id="tldr-count" class="font-bold">${missedMsgs.length}</span> messages.</span>
+             <button onclick="generateTLDR()" class="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1.5 rounded-lg transition-colors font-bold shadow-sm active:scale-95">Catch Me Up</button>
+             <button onclick="document.getElementById('tldr-banner').classList.add('hidden')" class="text-white/70 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"><i data-lucide="x" class="w-4 h-4"></i></button>
+          `;
+          banner.classList.remove('hidden');
+          window.missedMsgsContext = missedMsgs;
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+      } else if (banner) {
+          banner.classList.add('hidden');
+      }
+
       activeChatId = id;
       markChatAsRead(id);
       
@@ -4144,9 +4175,122 @@
           </div>
         `;
       }
+      
+      // Feature 7: Smart Replies Trigger
+      const sContainer = document.getElementById('smart-replies-container');
+      if (sContainer) {
+          sContainer.classList.add('hidden'); // Default hide
+          if (!activeChatId.startsWith('game_') && !activeChatId.startsWith('session_')) {
+              const recentValidMsgs = allMessages.filter(m => m.chatId === activeChatId && !m.deleted && !m.isSystem && m.text);
+              if (recentValidMsgs.length > 0) {
+                  const lastM = recentValidMsgs[recentValidMsgs.length - 1];
+                  // Trigger if the last message isn't me, is recent (last 5 mins), and input is empty
+                  if (lastM.sender.toLowerCase() !== userName.toLowerCase() && (Date.now() - lastM.createdAt < 300000) && !msgInput.value.trim()) {
+                      clearTimeout(window.smartReplyTimeout);
+                      window.smartReplyTimeout = setTimeout(() => fetchSmartReplies(activeChatId), 1500); // 1.5s delay feels natural
+                  }
+              }
+          }
+      }
+
       if (typeof lucide !== 'undefined') lucide.createIcons();
       container.scrollTop = container.scrollHeight;
     }
+
+    // --- FEATURE 6: AI TL;DR CATCH UP LOGIC ---
+    window.generateTLDR = async function() {
+        const banner = document.getElementById('tldr-banner');
+        banner.innerHTML = '<span class="text-white text-sm font-medium"><i data-lucide="loader-2" class="w-4 h-4 inline mr-1 animate-spin"></i> Nexus AI is reading...</span>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        
+        const context = window.missedMsgsContext.map(m => `${m.senderNickname || m.sender}: ${m.text}`).join('\n');
+        const prompt = "You are Nexus AI. Summarize the following missed chat messages into one single, highly concise, engaging sentence so the user knows exactly what they missed. Address the user directly (e.g., 'They were talking about...'). Do not use quotes or intro text.";
+        
+        try {
+            let summary = await callPollinationsAPI(`Missed Messages Context:\n${context}`, prompt);
+            summary = summary.replace(/^"|"$/g, '').trim();
+            
+            // Inject as a temporary system-style message directly into the DOM (not saved to DB)
+            const sysHtml = `
+               <div class="flex justify-center my-4 w-full animate-toast-in">
+                   <div class="bg-primary/20 border border-primary/40 text-indigo-100 px-6 py-4 rounded-2xl text-[14px] shadow-sm flex items-center gap-3 max-w-[85%] tracking-tight backdrop-blur-sm">
+                       <i data-lucide="sparkles" class="w-6 h-6 flex-shrink-0 text-yellow-300 animate-pulse"></i>
+                       <div>
+                           <div class="font-black text-primary text-[10px] uppercase tracking-widest mb-1">Nexus AI TL;DR</div>
+                           <span class="font-medium">${summary}</span>
+                       </div>
+                   </div>
+               </div>
+            `;
+            const container = document.getElementById('messages-container');
+            if (container.firstElementChild) {
+                 container.firstElementChild.insertAdjacentHTML('beforeend', sysHtml);
+            }
+            container.scrollTop = container.scrollHeight;
+            
+            banner.classList.add('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } catch(e) {
+            banner.innerHTML = '<span class="text-white text-sm font-medium">Failed to generate summary.</span> <button onclick="document.getElementById(\'tldr-banner\').classList.add(\'hidden\')" class="ml-2 text-white/70 hover:text-white p-1"><i data-lucide="x" class="w-4 h-4"></i></button>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    // --- FEATURE 7: SMART REPLIES LOGIC ---
+    async function fetchSmartReplies(chatId) {
+        if (msgInput.value.trim() || activeChatId !== chatId) return; // Cancel if they started typing
+        
+        const container = document.getElementById('smart-replies-container');
+        container.innerHTML = '<div class="text-[11px] text-primary/70 animate-pulse flex items-center gap-1.5 ml-2 font-bold uppercase tracking-widest"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Nexus Thinking...</div>';
+        container.classList.remove('hidden');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        const recentMsgs = allMessages.filter(m => m.chatId === chatId && !m.deleted && !m.isSystem && m.text).slice(-6);
+        const context = recentMsgs.map(m => `${m.senderNickname || m.sender}: ${m.text}`).join('\n');
+
+        const prompt = `You are powering a Smart Reply feature. Based on the following chat context, suggest 3 distinct, short, natural chat replies the user could send right now. Keep them extremely short (1 to 5 words max). 
+        Format strictly as 3 items separated by a pipe character (|). Example: Sounds good!|No way|I'll be there!`;
+        
+        try {
+            const res = await callPollinationsAPI(`Chat Context:\n${context}`, prompt);
+            
+            if (activeChatId !== chatId || msgInput.value.trim()) {
+                container.classList.add('hidden'); // Cancel if state changed while waiting
+                return;
+            }
+
+            const replies = res.split('|').map(r => r.replace(/^"|"$/g, '').trim()).filter(r => r.length > 0 && r.length < 40);
+            
+            if (replies.length > 0) {
+                container.innerHTML = replies.slice(0, 3).map(r => `
+                    <button onclick="useSmartReply('${r.replace(/'/g, "\\'")}')" class="bg-sidebarBg/90 border border-primary/30 hover:bg-primary/20 text-indigo-200 text-xs px-4 py-2 rounded-full shadow-sm transition-all transform hover:scale-105 backdrop-blur-md font-medium tracking-tight">
+                        ${r}
+                    </button>
+                `).join('');
+            } else {
+                container.classList.add('hidden');
+            }
+        } catch(e) {
+            container.classList.add('hidden');
+        }
+    }
+
+    window.useSmartReply = function(text) {
+        msgInput.value = text;
+        msgInput.dispatchEvent(new Event('input'));
+        document.getElementById('smart-replies-container').classList.add('hidden');
+        msgInput.focus();
+    }
+
+    // Hide smart replies if user starts typing manually
+    msgInput.addEventListener('input', () => {
+        if (msgInput.value.trim()) {
+            const sContainer = document.getElementById('smart-replies-container');
+            if (sContainer && !sContainer.classList.contains('hidden')) {
+                sContainer.classList.add('hidden');
+            }
+        }
+    });
 
     // 5. GENERAL MODAL LOGIC
     const modalContainer = document.getElementById('modal-container');
