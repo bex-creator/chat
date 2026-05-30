@@ -20,22 +20,6 @@
         }
     }
 
-    function hexToRgb(hex) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
-    }
-
-    function applyTint(hex) {
-        const rgb = hexToRgb(hex);
-        if(!rgb) return;
-        const { r, g, b } = rgb;
-        // Blend the theme color into the dark slate base backgrounds
-        document.documentElement.style.setProperty('--theme-bg-main', `rgb(${Math.floor(5*0.90+r*0.10)}, ${Math.floor(6*0.90+g*0.10)}, ${Math.floor(10*0.90+b*0.10)})`);
-        document.documentElement.style.setProperty('--theme-bg-sidebar', `rgb(${Math.floor(11*0.88+r*0.12)}, ${Math.floor(14*0.88+g*0.12)}, ${Math.floor(20*0.88+b*0.12)})`);
-        document.documentElement.style.setProperty('--theme-bg-input', `rgb(${Math.floor(19*0.85+r*0.15)}, ${Math.floor(24*0.85+g*0.15)}, ${Math.floor(35*0.85+b*0.15)})`);
-        document.documentElement.style.setProperty('--theme-border', `rgb(${Math.floor(31*0.75+r*0.25)}, ${Math.floor(36*0.75+g*0.25)}, ${Math.floor(51*0.75+b*0.25)})`);
-    }
-
     const savedTheme = localStorage.getItem('chat_theme') || 'indigo';
     window.appThemes = {
         indigo: { p: '#6366f1', ph: '#4f46e5' },
@@ -58,7 +42,6 @@
 
     document.documentElement.style.setProperty('--theme-primary', t.p);
     document.documentElement.style.setProperty('--theme-primary-hover', t.ph);
-    applyTint(t.p);
   </script>
 
   <!-- Google Fonts: Inter -->
@@ -82,12 +65,12 @@
             sans: ['Inter', 'system-ui', 'sans-serif'],
           },
           colors: {
-            sidebarBg: 'var(--theme-bg-sidebar, #0B0E14)', 
-            mainBg: 'var(--theme-bg-main, #05060A)',
-            border: 'var(--theme-border, #1F2433)',
+            sidebarBg: '#0B0E14', 
+            mainBg: '#05060A',
+            border: '#1F2433',
             primary: 'var(--theme-primary, #6366f1)',
             primaryHover: 'var(--theme-primary-hover, #4f46e5)',
-            inputBg: 'var(--theme-bg-input, #131823)',
+            inputBg: '#131823',
             textMuted: '#8B94A5'
           }
         }
@@ -527,7 +510,7 @@
 
         <!-- Emoji Picker Container -->
         <div id="emoji-picker-container" class="hidden absolute bottom-full right-4 mb-2 z-50 shadow-2xl rounded-2xl overflow-hidden border border-border">
-            <emoji-picker class="dark" style="--background: var(--theme-bg-sidebar, #0B0E14); --border-color: var(--theme-border, #1F2433); --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: var(--theme-border, #1F2433); --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
+            <emoji-picker class="dark" style="--background: #0B0E14; --border-color: #1F2433; --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: #1F2433; --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
         </div>
 
         <!-- Plus Options Menu Container -->
@@ -714,6 +697,12 @@
             </label>
             <img id="modal-chat-bg-preview" src="" class="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity z-0" />
           </div>
+
+          <div class="flex items-center gap-3 mt-1 bg-inputBg p-3 rounded-xl border border-white/5">
+            <input type="checkbox" id="modal-chat-bg-adapt" class="w-5 h-5 rounded bg-black/50 border-white/10 text-primary cursor-pointer focus:ring-primary/50 focus:ring-offset-inputBg" checked>
+            <label for="modal-chat-bg-adapt" class="text-sm text-slate-200 font-medium cursor-pointer select-none">Adapt UI Colors to Image</label>
+          </div>
+
           <div class="flex items-center justify-between mt-1">
              <span class="text-xs text-textMuted">Max 800px. High-res images will be compressed.</span>
              <button type="button" id="btn-clear-chat-bg" class="text-xs text-red-400 hover:text-red-300 transition-colors bg-red-400/10 px-2 py-1 rounded">Clear Background</button>
@@ -766,7 +755,10 @@
           <label class="text-sm text-slate-300 font-semibold ml-1">Name & Message Border Color</label>
           <div class="flex items-center gap-3 bg-inputBg border border-white/5 rounded-xl px-4 py-2">
               <input type="color" id="modal-color-input" class="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0" value="#ffffff" />
-              <span class="text-sm text-textMuted">Choose a custom color</span>
+              <span class="text-sm text-textMuted hidden sm:inline">Choose a custom color</span>
+              <button type="button" id="btn-extract-pfp-color" class="ml-auto text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                  <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> Match Avatar
+              </button>
           </div>
         </div>
 
@@ -1067,7 +1059,7 @@
   <div id="reaction-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeReactionModal()"></div>
     <div class="relative bg-sidebarBg border border-border rounded-2xl shadow-2xl overflow-hidden p-2 animate-toast-in">
-        <emoji-picker class="dark" id="msg-emoji-picker" style="--background: var(--theme-bg-sidebar, #0B0E14); --border-color: var(--theme-border, #1F2433); --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: var(--theme-border, #1F2433); --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
+        <emoji-picker class="dark" id="msg-emoji-picker" style="--background: #0B0E14; --border-color: #1F2433; --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: #1F2433; --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
     </div>
   </div>
 
@@ -1228,8 +1220,6 @@
         document.documentElement.style.setProperty('--theme-primary', t.p);
         document.documentElement.style.setProperty('--theme-primary-hover', t.ph);
         
-        if (typeof applyTint === 'function') applyTint(t.p);
-
         const globalBg = document.getElementById('global-theme-bg');
         const loginBg = document.getElementById('login-bg-element');
         
@@ -1491,6 +1481,59 @@
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
+    }
+
+    // Color Extractor Utility
+    function getDominantColor(base64Str, callback) {
+        if (!base64Str || base64Str === 'clear') {
+            callback(null); return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            let r = 0, g = 0, b = 0, count = 0;
+            try {
+                const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                for (let i = 0; i < data.length; i += 40) {
+                    r += data[i];
+                    g += data[i+1];
+                    b += data[i+2];
+                    count++;
+                }
+            } catch(err) {
+                callback(null);
+                return;
+            }
+
+            if (count > 0) {
+                r = Math.floor(r / count);
+                g = Math.floor(g / count);
+                b = Math.floor(b / count);
+            }
+
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            if (max - min < 20 && max < 200) {
+                r = Math.min(255, r + 20);
+                g = Math.min(255, g + 20);
+                b = Math.min(255, b + 50);
+            } else {
+                const scale = Math.min(255 / max, 1.5);
+                r = Math.min(255, Math.floor(r * scale));
+                g = Math.min(255, Math.floor(g * scale));
+                b = Math.min(255, Math.floor(b * scale));
+            }
+            callback({
+                p: rgbToHex(r, g, b),
+                ph: darkenRGB(r, g, b, 0.2)
+            });
+        };
+        img.src = base64Str;
     }
 
     // Suspension Utility
@@ -1766,6 +1809,16 @@
       });
     });
 
+    document.getElementById('btn-extract-pfp-color').addEventListener('click', () => {
+        const imgSrc = pendingPhotoURL || currentPhotoURL;
+        getDominantColor(imgSrc, (colors) => {
+            if (colors && colors.p) {
+                modalColorInput.value = colors.p;
+                checkModalSubmitDisabled();
+            }
+        });
+    });
+
     modalChatBgInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file) {
@@ -1773,6 +1826,7 @@
           pendingChatBgURL = base64Str;
           modalChatBgPreview.src = base64Str;
           modalChatBgPreview.classList.remove('opacity-0');
+          document.getElementById('modal-chat-bg-adapt').checked = true;
           checkModalSubmitDisabled(); 
         });
       }
@@ -3278,6 +3332,15 @@
                 }
             }, 500); 
         }
+
+        // Apply Chat-specific theme color if present
+        if (activeChat && activeChat.chatBgColor && !currentT.bg) {
+            document.documentElement.style.setProperty('--theme-primary', activeChat.chatBgColor.p);
+            document.documentElement.style.setProperty('--theme-primary-hover', activeChat.chatBgColor.ph);
+        } else {
+            document.documentElement.style.setProperty('--theme-primary', currentT.p);
+            document.documentElement.style.setProperty('--theme-primary-hover', currentT.ph);
+        }
     }
 
     function renderHeader() {
@@ -3969,6 +4032,7 @@
               modalChatBgPreview.src = '';
               modalChatBgPreview.classList.add('opacity-0');
           }
+          document.getElementById('modal-chat-bg-adapt').checked = !!allChats[activeChatId]?.chatBgColor;
           pendingChatBgURL = null;
           btnSubmitModal.textContent = 'Save Background';
           btnSubmitModal.disabled = true;
@@ -4053,7 +4117,10 @@
         const o2 = document.getElementById('modal-poll-opt2').value.trim();
         btnSubmitModal.disabled = !(q && o1 && o2);
       } else if (modalType === 'chat_bg') {
-        btnSubmitModal.disabled = !pendingChatBgURL;
+        const currentAdapt = !!allChats[activeChatId]?.chatBgColor;
+        const newAdapt = document.getElementById('modal-chat-bg-adapt').checked;
+        const adaptChanged = currentAdapt !== newAdapt;
+        btnSubmitModal.disabled = (!pendingChatBgURL && !adaptChanged);
       } else if (modalType === 'edit_profile') {
         const newUname = modalInput.value.trim();
         const newNick = modalInput2.value.trim();
@@ -4077,6 +4144,7 @@
     ['modal-poll-question', 'modal-poll-opt1', 'modal-poll-opt2'].forEach(id => {
        document.getElementById(id).addEventListener('input', checkModalSubmitDisabled);
     });
+    document.getElementById('modal-chat-bg-adapt').addEventListener('change', checkModalSubmitDisabled);
     modalPresenceInput.addEventListener('change', checkModalSubmitDisabled);
     modalStatusTextInput.addEventListener('input', checkModalSubmitDisabled);
 
@@ -4284,11 +4352,27 @@
           btnSubmitModal.disabled = true;
           btnSubmitModal.textContent = 'Saving...';
           try {
-              const updateVal = pendingChatBgURL === 'clear' ? null : pendingChatBgURL;
-              await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
-                  chatBg: updateVal
-              });
-              closeModal();
+              let targetBg = pendingChatBgURL;
+              if (!targetBg && allChats[activeChatId]?.chatBg) targetBg = allChats[activeChatId].chatBg;
+              if (targetBg === 'clear') targetBg = null;
+
+              const adaptColors = document.getElementById('modal-chat-bg-adapt').checked;
+
+              if (targetBg && adaptColors) {
+                  getDominantColor(targetBg, async (colors) => {
+                      await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
+                          chatBg: targetBg,
+                          chatBgColor: colors
+                      });
+                      closeModal();
+                  });
+              } else {
+                  await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', activeChatId), {
+                      chatBg: targetBg,
+                      chatBgColor: null
+                  });
+                  closeModal();
+              }
           } catch(e) {
               console.error(e);
               showError("Failed to update background.");
