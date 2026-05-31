@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat Space</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1' stroke='white' stroke-width='1.5'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/></svg>">
+  <link id="app-favicon" rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%236366f1'/><path d='M7 17V7h3l4 6V7h3v10h-3l-4-6v6H7z' fill='white'/></svg>">
   
   <!-- Pre-load Theme to prevent FOUC -->
   <script>
@@ -2488,8 +2488,11 @@
 
             // --- VIRTUAL PET INITIALIZATION ---
             // Always render the pet widget immediately on load if they have one
+            const favicon = document.getElementById('app-favicon');
             if (myProfile.pet) {
                 const petTypeData = PET_TYPES.find(p => p.id === myProfile.pet.type) || PET_TYPES[3]; // Fallback to Pikachu
+                if (favicon && petTypeData.img) favicon.href = petTypeData.img;
+                
                 let activeAcc = '';
                 if (myProfile.activeCosmetics && myProfile.activeCosmetics.pet_acc) {
                     const accItem = SHOP_ITEMS.find(i => i.id === myProfile.activeCosmetics.pet_acc);
@@ -2503,6 +2506,7 @@
                     window.updateSidebarPetWidget(myProfile, petTypeData.img, activeAcc, cHunger, cHappiness);
                 }
             } else {
+                if (favicon) favicon.href = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%236366f1'/><path d='M7 17V7h3l4 6V7h3v10h-3l-4-6v6H7z' fill='white'/></svg>";
                 if (window.updateSidebarPetWidget) {
                     window.updateSidebarPetWidget(myProfile, null, null, 0, 0);
                 }
