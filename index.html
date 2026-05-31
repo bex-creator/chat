@@ -162,6 +162,14 @@
     @keyframes shine {
         to { background-position: 200% center; }
     }
+
+    /* Cosmetic Shop Effects */
+    .cosmetic-name-rainbow { background: linear-gradient(to right, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #d946ef); background-size: 200% auto; -webkit-background-clip: text; color: transparent; animation: shine 3s linear infinite; font-weight: 900; }
+    .cosmetic-name-glitch { color: #fff; font-weight: 900; text-shadow: 2px 0 #0ff, -2px 0 #f0f; }
+    .cosmetic-name-gold { background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c); background-size: 200% auto; -webkit-background-clip: text; color: transparent; animation: shine 3s linear infinite; font-weight: 900; }
+    .cosmetic-bubble-neon { border-color: #f43f5e !important; box-shadow: 0 0 15px rgba(244,63,94,0.3), inset 0 0 10px rgba(244,63,94,0.1) !important; }
+    .cosmetic-bubble-hacker { border-color: #22c55e !important; box-shadow: 0 0 15px rgba(34,197,94,0.3), inset 0 0 10px rgba(34,197,94,0.1) !important; border-radius: 0 !important; }
+    .cosmetic-bubble-void { border-color: #a855f7 !important; box-shadow: 0 0 20px rgba(168,85,247,0.4) !important; background: rgba(0,0,0,0.8) !important; }
     
     /* Immersive Full UI Mode - Transparent Panels, Black Blur Buttons/Inputs */
     body.immersive-mode #chat-custom-bg-overlay {
@@ -478,6 +486,12 @@
             </div>
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
+            <button id="btn-open-shop" class="text-pink-400 hover:text-pink-300 transition-colors p-2.5 rounded-xl hover:bg-pink-500/10" title="XP Shop">
+              <i data-lucide="shopping-cart" class="w-[18px] h-[18px]"></i>
+            </button>
+            <button id="btn-open-quests" class="text-blue-400 hover:text-blue-300 transition-colors p-2.5 rounded-xl hover:bg-blue-500/10" title="Daily Quests">
+              <i data-lucide="target" class="w-[18px] h-[18px]"></i>
+            </button>
             <button id="btn-open-leaderboard" class="text-yellow-500 hover:text-yellow-400 transition-colors p-2.5 rounded-xl hover:bg-yellow-500/10" title="Leaderboard">
               <i data-lucide="trophy" class="w-[18px] h-[18px]"></i>
             </button>
@@ -1240,6 +1254,50 @@
     </div>
   </div>
 
+  <!-- QUESTS MODAL -->
+  <div id="quests-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-blue-500/30 shadow-[0_0_60px_-15px_rgba(59,130,246,0.2)] flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i data-lucide="target" class="w-6 h-6 text-blue-400"></i> Daily Quests
+            </h2>
+            <button onclick="closeQuestsModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div id="quests-container" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+            <!-- Quests injected here -->
+        </div>
+    </div>
+  </div>
+
+  <!-- SHOP MODAL -->
+  <div id="shop-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl p-6 rounded-[32px] bg-sidebarBg border border-pink-500/30 shadow-[0_0_60px_-15px_rgba(236,72,153,0.2)] flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i data-lucide="shopping-cart" class="w-6 h-6 text-pink-400"></i> Cosmetic Shop
+            </h2>
+            <div class="flex items-center gap-4">
+                <div class="bg-black/40 border border-yellow-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-inner">
+                   <i data-lucide="star" class="w-4 h-4 text-yellow-400"></i>
+                   <span id="shop-xp-balance" class="text-yellow-400 font-bold text-sm tracking-widest">0 XP</span>
+                </div>
+                <button onclick="closeShopModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Name Effects</h3>
+            <div id="shop-container-names" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6"></div>
+            
+            <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Chat Bubbles</h3>
+            <div id="shop-container-bubbles" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2"></div>
+        </div>
+    </div>
+  </div>
+
   <!-- ==================== SCRIPT ==================== -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -1331,12 +1389,23 @@
     let activeGameData = null;
     let unsubActiveGame = null;
 
+    // Cosmetic Shop Configuration
+    const SHOP_ITEMS = [
+        { id: 'name_rainbow', name: 'Rainbow Name', type: 'name', cost: 500, class: 'cosmetic-name-rainbow', icon: 'palette' },
+        { id: 'name_gold', name: 'Solid Gold Name', type: 'name', cost: 750, class: 'cosmetic-name-gold', icon: 'coins' },
+        { id: 'name_glitch', name: 'Glitch Hacker Name', type: 'name', cost: 1000, class: 'cosmetic-name-glitch', icon: 'terminal' },
+        { id: 'bubble_neon', name: 'Neon Rose Border', type: 'bubble', cost: 400, class: 'cosmetic-bubble-neon', icon: 'box' },
+        { id: 'bubble_hacker', name: 'Cyberpunk Outline', type: 'bubble', cost: 600, class: 'cosmetic-bubble-hacker', icon: 'cpu' },
+        { id: 'bubble_void', name: 'The Dark Void', type: 'bubble', cost: 1200, class: 'cosmetic-bubble-void', icon: 'moon' }
+    ];
+
     // Custom Games List
     let appGames = [
         { id: 'game_tictactoe', name: 'Tic Tac Toe', desc: 'Classic 2-player multiplayer', icon: 'grid', isMultiplayer: true },
         { id: 'game_gridtag', name: 'Grid Tag', desc: 'Turn-based pursuit on a 5x5 board', icon: 'target', isMultiplayer: true },
         { id: 'game_rps', name: 'Rock Paper Scissors', desc: 'Classic mind games', icon: 'hand', isMultiplayer: true },
         { id: 'game_drawguess', name: 'Draw & Guess', desc: 'Pictionary style drawing game', icon: 'pen-tool', isMultiplayer: true },
+        { id: 'game_trivia', name: 'Nexus Trivia', desc: 'Live AI-hosted trivia race', icon: 'brain-circuit', isMultiplayer: true },
         { id: 'game_jhk', name: 'JHK Game', url: 'https://bex-creator.github.io/jhk/', desc: 'Single-player web game', icon: 'gamepad-2' }
     ];
     
@@ -2293,6 +2362,15 @@
 
         if (!document.getElementById('admin-modal').classList.contains('hidden')) {
           renderAdminUsers();
+        }
+        if (!document.getElementById('leaderboard-modal').classList.contains('hidden')) {
+          window.renderLeaderboard();
+        }
+        if (!document.getElementById('quests-modal').classList.contains('hidden')) {
+          window.renderQuests();
+        }
+        if (!document.getElementById('shop-modal').classList.contains('hidden')) {
+          window.renderShop();
         }
       });
     }
@@ -3919,6 +3997,20 @@
               let isVIP = false;
               const isNexus = msg.sender === 'nexus_ai';
 
+              // Get Active Cosmetics
+              const activeCosmetics = senderProfile?.activeCosmetics || {};
+              let cosmeticNameClass = '';
+              let cosmeticBubbleClass = '';
+              
+              if (activeCosmetics.name) {
+                  const item = SHOP_ITEMS.find(i => i.id === activeCosmetics.name);
+                  if (item) cosmeticNameClass = item.class;
+              }
+              if (activeCosmetics.bubble) {
+                  const item = SHOP_ITEMS.find(i => i.id === activeCosmetics.bubble);
+                  if (item) cosmeticBubbleClass = item.class;
+              }
+
               if (isNexus) {
                   roleBadge = '<span class="text-[9px] bg-primary/20 text-indigo-300 border border-primary/30 px-1.5 rounded font-black tracking-tighter shadow-sm flex items-center gap-1 inline-flex"><i data-lucide="sparkles" class="w-2.5 h-2.5"></i> AI</span>';
                   nameClass = 'text-primary font-black drop-shadow-sm';
@@ -3938,6 +4030,15 @@
                   bubbleBorderClass = 'border border-yellow-500/40 shadow-[0_0_15px_rgba(234,179,8,0.1)]'; // Gold glowing border
               } else if (senderProfile?.nameColor && senderProfile.nameColor !== '#ffffff') {
                   nameStyle = `style="color: ${senderProfile.nameColor}; text-shadow: 0 0 10px ${senderProfile.nameColor}40;"`;
+              }
+
+              // Apply Cosmetic Overrides
+              if (cosmeticNameClass) {
+                  nameClass = cosmeticNameClass;
+                  nameStyle = ''; // Override custom colors
+              }
+              if (cosmeticBubbleClass) {
+                  bubbleBorderClass = cosmeticBubbleClass;
               }
 
               const safeStatus = senderProfile?.statusText ? senderProfile.statusText.replace(/"/g, '&quot;') : '';
@@ -4083,11 +4184,11 @@
               const safeTextForEdit = msg.text ? msg.text.replace(/'/g, "&apos;").replace(/"/g, "&quot;") : '';
               
               // Bubble colors
-              const myBubbleBase = isVIP ? `bg-gradient-to-br from-primary to-indigo-600 rounded-2xl rounded-tr-sm shadow-primary/20 ${bubbleBorderClass}` : `bg-gradient-to-br from-primary to-indigo-600 rounded-2xl rounded-tr-sm shadow-primary/20`;
-              const theirBubbleBase = isVIP ? `bg-sidebarBg rounded-2xl rounded-tl-sm ${bubbleBorderClass}` : `bg-sidebarBg rounded-2xl rounded-tl-sm border border-white/5`;
+              const myBubbleBase = isVIP ? `bg-gradient-to-br from-primary to-indigo-600 rounded-2xl rounded-tr-sm shadow-primary/20 ${bubbleBorderClass}` : `bg-gradient-to-br from-primary to-indigo-600 rounded-2xl rounded-tr-sm shadow-primary/20 ${cosmeticBubbleClass ? bubbleBorderClass : ''}`;
+              const theirBubbleBase = isVIP ? `bg-sidebarBg rounded-2xl rounded-tl-sm ${bubbleBorderClass}` : `bg-sidebarBg rounded-2xl rounded-tl-sm ${cosmeticBubbleClass ? bubbleBorderClass : 'border border-white/5'}`;
 
               let bubbleStyle = '';
-              if (senderProfile?.nameColor && senderProfile.nameColor !== '#ffffff') {
+              if (senderProfile?.nameColor && senderProfile.nameColor !== '#ffffff' && !cosmeticBubbleClass) {
                   bubbleStyle = `style="border: 2px solid ${senderProfile.nameColor}; box-shadow: inset 0 0 10px ${senderProfile.nameColor}20, 0 0 10px ${senderProfile.nameColor}40;"`;
               }
 
@@ -5701,6 +5802,222 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
+    // Daily Quests Logic
+    document.getElementById('btn-open-quests').addEventListener('click', () => {
+        window.renderQuests();
+        document.getElementById('quests-modal').classList.remove('hidden');
+    });
+
+    window.closeQuestsModal = function() {
+        document.getElementById('quests-modal').classList.add('hidden');
+    }
+
+    // --- XP SHOP LOGIC ---
+    document.getElementById('btn-open-shop').addEventListener('click', () => {
+        window.renderShop();
+        document.getElementById('shop-modal').classList.remove('hidden');
+    });
+
+    window.closeShopModal = function() {
+        document.getElementById('shop-modal').classList.add('hidden');
+    }
+
+    window.renderShop = function() {
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (!myProfile) return;
+
+        document.getElementById('shop-xp-balance').textContent = `${myProfile.xp || 0} XP`;
+
+        const unlocked = myProfile.unlockedCosmetics || [];
+        const active = myProfile.activeCosmetics || {};
+
+        const renderItem = (item) => {
+            const isUnlocked = unlocked.includes(item.id);
+            const isEquipped = active[item.type] === item.id;
+            const canAfford = (myProfile.xp || 0) >= item.cost;
+
+            let buttonHTML = '';
+            if (isUnlocked) {
+                if (isEquipped) {
+                    buttonHTML = `<button onclick="toggleCosmetic('${item.id}', '${item.type}')" class="w-full py-2 rounded-xl text-xs font-bold transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30">Equipped <i data-lucide="check" class="w-3 h-3 inline ml-1"></i></button>`;
+                } else {
+                    buttonHTML = `<button onclick="toggleCosmetic('${item.id}', '${item.type}')" class="w-full py-2 rounded-xl text-xs font-bold transition-all bg-white/10 text-white border border-white/20 hover:bg-white/20">Equip</button>`;
+                }
+            } else {
+                buttonHTML = `<button onclick="buyCosmetic('${item.id}')" class="w-full py-2 rounded-xl text-xs font-bold transition-all ${canAfford ? 'bg-primary hover:bg-primaryHover text-white shadow-md active:scale-95' : 'bg-black/50 text-textMuted border border-white/5 cursor-not-allowed'}" ${canAfford ? '' : 'disabled'}>Buy - ${item.cost} XP</button>`;
+            }
+
+            return `
+                <div class="bg-black/30 border ${isEquipped ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'border-white/10'} p-4 rounded-2xl flex flex-col gap-3 transition-all relative overflow-hidden group">
+                    <div class="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <i data-lucide="${item.icon}" class="w-20 h-20"></i>
+                    </div>
+                    <div class="flex items-center gap-3 relative z-10">
+                        <div class="w-10 h-10 rounded-xl bg-sidebarBg border border-white/10 flex items-center justify-center shadow-inner flex-shrink-0">
+                            <i data-lucide="${item.icon}" class="w-5 h-5 text-pink-400"></i>
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                            <span class="font-bold text-sm text-slate-200 truncate ${item.type === 'name' ? item.class : ''}">${item.name}</span>
+                            <span class="text-[10px] text-textMuted uppercase tracking-widest font-semibold">${item.type}</span>
+                        </div>
+                    </div>
+                    <div class="mt-auto relative z-10 pt-1">
+                        ${buttonHTML}
+                    </div>
+                </div>
+            `;
+        };
+
+        const namesHtml = SHOP_ITEMS.filter(i => i.type === 'name').map(renderItem).join('');
+        const bubblesHtml = SHOP_ITEMS.filter(i => i.type === 'bubble').map(renderItem).join('');
+
+        document.getElementById('shop-container-names').innerHTML = namesHtml;
+        document.getElementById('shop-container-bubbles').innerHTML = bubblesHtml;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    window.buyCosmetic = async function(itemId) {
+        const item = SHOP_ITEMS.find(i => i.id === itemId);
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (!item || !myProfile || (myProfile.xp || 0) < item.cost) return;
+
+        const unlocked = myProfile.unlockedCosmetics || [];
+        if (unlocked.includes(itemId)) return;
+
+        unlocked.push(itemId);
+        
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                xp: myProfile.xp - item.cost,
+                unlockedCosmetics: unlocked
+            });
+            showInAppNotification({sender: "Shop", text: `Successfully unlocked ${item.name}!`}, null);
+        } catch(e) {
+            console.error("Purchase failed", e);
+        }
+    }
+
+    window.toggleCosmetic = async function(itemId, type) {
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (!myProfile) return;
+
+        const unlocked = myProfile.unlockedCosmetics || [];
+        if (!unlocked.includes(itemId)) return;
+
+        const active = myProfile.activeCosmetics || {};
+        
+        if (active[type] === itemId) {
+            active[type] = null; // Unequip if already equipped
+        } else {
+            active[type] = itemId; // Equip
+        }
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                activeCosmetics: active
+            });
+        } catch(e) {
+            console.error("Toggle failed", e);
+        }
+    }
+
+    window.renderQuests = function() {
+        const container = document.getElementById('quests-container');
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (!myProfile) return;
+
+        const today = new Date().toLocaleDateString();
+        const dailyQuests = myProfile.dailyQuests || {};
+
+        if (dailyQuests.date === today && dailyQuests.quests && dailyQuests.quests.length > 0) {
+            container.innerHTML = dailyQuests.quests.map((q, idx) => `
+                <div class="bg-black/20 border ${q.claimed ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/5'} p-4 rounded-2xl flex items-center justify-between gap-3 transition-colors">
+                    <div class="flex flex-col min-w-0 flex-1">
+                        <span class="text-sm font-bold ${q.claimed ? 'text-emerald-400 line-through opacity-70' : 'text-slate-200'}">${q.text}</span>
+                        <span class="text-[10px] text-yellow-400 font-bold mt-1">+50 XP</span>
+                    </div>
+                    <button onclick="claimQuest(${idx})" class="${q.claimed ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 cursor-not-allowed' : 'bg-primary hover:bg-primaryHover text-white shadow-md active:scale-95'} px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0" ${q.claimed ? 'disabled' : ''}>
+                        ${q.claimed ? 'Claimed <i data-lucide="check" class="w-3 h-3 inline ml-1"></i>' : 'Claim'}
+                    </button>
+                </div>
+            `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-10 text-center animate-toast-in">
+                    <div class="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-full flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(59,130,246,0.15)]">
+                        <i data-lucide="sparkles" class="text-blue-400 w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-white text-lg font-bold mb-2 tracking-tight">New Quests Available!</h3>
+                    <p class="text-textMuted text-[13px] mb-8 max-w-[250px] leading-relaxed">Ask Nexus AI to generate 3 new random challenges for today to earn bonus XP.</p>
+                    <button onclick="generateDailyQuests()" id="btn-gen-quests" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Generate Quests
+                    </button>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    window.generateDailyQuests = async function() {
+        const btn = document.getElementById('btn-gen-quests');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generating...';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        const prompt = "You are Nexus AI. Generate exactly 3 fun, simple, and slightly quirky daily chat app quests for a user to complete. Examples: 'Send a message entirely in all caps', 'Share a picture of a pet or animal', 'Use the /imagine command to generate a funny image', 'React to 3 different messages', 'Challenge someone to a game of Tic Tac Toe'. Return ONLY the 3 quests separated by a pipe (|) character. Keep them under 10 words each. Do not use numbering or bullet points.";
+
+        try {
+            let result = await callPollinationsAPI("Generate 3 daily quests.", prompt);
+            let quests = result.replace(/^"|"$/g, '').split('|').map(q => q.trim()).filter(q => q.length > 0);
+            
+            // Fallback if AI messes up formatting
+            if (quests.length < 3) {
+                quests = ["Say hello to someone new", "Send a funny picture", "Play a mini-game"];
+            }
+
+            const today = new Date().toLocaleDateString();
+            const questsData = {
+                date: today,
+                quests: quests.slice(0, 3).map(q => ({ text: q, claimed: false }))
+            };
+
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                dailyQuests: questsData
+            });
+
+            window.renderQuests();
+        } catch(e) {
+            console.error("Failed to generate quests", e);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = 'Try Again';
+            }
+        }
+    }
+
+    window.claimQuest = async function(index) {
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (!myProfile || !myProfile.dailyQuests || !myProfile.dailyQuests.quests) return;
+
+        const questsData = JSON.parse(JSON.stringify(myProfile.dailyQuests));
+        if (questsData.quests[index].claimed) return;
+
+        questsData.quests[index].claimed = true;
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                dailyQuests: questsData
+            });
+            awardXP(userName, 50);
+            showInAppNotification({sender: "Nexus AI", text: `Quest Complete! You earned 50 XP.`}, null);
+        } catch(e) {
+            console.error("Failed to claim quest", e);
+        }
+    }
+
     // Role & Color Assignment 
     window.assignUserRole = async function(userId, newRole) {
         if (!isAdmin()) {
@@ -5844,6 +6161,13 @@
             initData.strokes = '[]';
             initData.lastGuess = null;
             initData.turn = userName;
+        } else if (type === 'trivia') {
+            initData.topic = 'General Knowledge';
+            initData.scores = { [userName]: 0 };
+            initData.currentQuestion = null;
+            initData.currentAnswer = null;
+            initData.targetScore = 3;
+            initData.lastGuess = null;
         }
 
         try {
@@ -5867,6 +6191,11 @@
                     if (data.gameType === 'gridtag') {
                         updates.chaser = userName;
                         updates.turn = data.runner; // Runner always moves first
+                    }
+                    if (data.gameType === 'trivia') {
+                        const newScores = data.scores || {};
+                        newScores[userName] = 0;
+                        updates.scores = newScores;
                     }
                     await updateDoc(gameRef, updates);
                 }
@@ -5893,6 +6222,8 @@
             renderRPS();
         } else if (activeGameData.gameType === 'drawguess') {
             renderDrawGuess();
+        } else if (activeGameData.gameType === 'trivia') {
+            renderTrivia();
         } else {
             container.innerHTML = `<div class="flex h-full items-center justify-center text-red-400 font-medium">Unknown Game Type</div>`;
         }
@@ -6654,6 +6985,225 @@
                 strokes: '[]',
                 lastGuess: null,
                 turn: nextTurn
+            });
+        } catch(e) { console.error("Error resetting match", e); }
+    }
+
+    // --- NEXUS TRIVIA ENGINE ---
+    window.renderTrivia = function() {
+        const container = document.getElementById('game-container');
+        const session = activeGameData;
+
+        const isCreator = session.creator === userName;
+        const isOpponent = session.opponent === userName;
+        const isPlayer = isCreator || isOpponent;
+
+        let statusText = '';
+        let headerGlow = 'border-white/5 bg-black/40';
+
+        if (session.status === 'waiting') {
+            statusText = '<span class="text-amber-400 font-bold animate-pulse">Waiting for an opponent to join...</span>';
+            headerGlow = 'border-amber-500/30 bg-amber-500/5';
+        } else if (session.status === 'playing') {
+            statusText = `<span class='text-emerald-400 font-bold'>Race to ${session.targetScore} points!</span>`;
+            headerGlow = 'border-emerald-500/30 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.15)]';
+        } else if (session.status === 'finished') {
+            if (session.winner === userName) {
+                statusText = "<span class='text-yellow-400 font-bold text-lg'>🎉 You won the match!</span>";
+                headerGlow = 'border-yellow-500/40 bg-yellow-500/10 shadow-[0_0_40px_rgba(234,179,8,0.2)]';
+            } else {
+                statusText = `<span class='text-red-400 font-bold'>Match Over. @${session.winner} won!</span>`;
+                headerGlow = 'border-red-500/20 bg-red-500/5';
+            }
+        }
+
+        // Trigger AI Question Generation if needed
+        if (session.status === 'playing' && !session.currentQuestion && isCreator && !window.isGeneratingTrivia) {
+            window.isGeneratingTrivia = true;
+            generateTriviaQuestion(session.id, session.topic).then(() => window.isGeneratingTrivia = false);
+        }
+
+        const myScore = session.scores ? (session.scores[userName] || 0) : 0;
+        const oppScore = session.scores ? (session.scores[isCreator ? session.opponent : session.creator] || 0) : 0;
+        
+        let lastGuessHTML = '';
+        if (session.lastGuess) {
+            if (session.lastGuess.isCorrect) {
+                lastGuessHTML = `<span class="text-emerald-400 font-bold"><i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i>@${session.lastGuess.sender} got it! Answer: ${session.currentAnswer.toUpperCase()}</span>`;
+            } else {
+                lastGuessHTML = `<span class="text-red-400 opacity-80">@${session.lastGuess.sender} guessed: <span class="line-through">${session.lastGuess.text}</span></span>`;
+            }
+        }
+
+        container.innerHTML = `
+            <div class="flex-1 flex flex-col items-center justify-center p-6 text-center w-full h-full bg-pattern overflow-y-auto">
+                <div class="w-full max-w-2xl mx-auto ${headerGlow} border rounded-3xl p-6 transition-all duration-500 mb-6 relative overflow-hidden">
+                    <i data-lucide="brain-circuit" class="absolute -right-6 -bottom-6 w-32 h-32 text-white/5 z-0"></i>
+                    <div class="relative z-10">
+                        <h2 class="text-2xl font-bold text-white tracking-tight mb-2 flex flex-wrap justify-center items-center gap-3">
+                            Nexus Trivia 
+                            <span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded border border-indigo-500/30 font-bold tracking-widest uppercase">Topic: ${session.topic}</span>
+                        </h2>
+                        <p class="text-[15px]">${statusText}</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 sm:gap-12 w-full max-w-md justify-center mb-8">
+                    <div class="flex flex-col items-center flex-1 bg-black/40 border border-white/5 p-4 rounded-2xl ${session.winner === session.creator ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]' : ''}">
+                        <span class="text-[10px] font-bold text-textMuted uppercase tracking-widest mb-1 truncate w-full max-w-[100px]">@${session.creator}</span>
+                        <span class="text-4xl font-black ${session.creator === userName ? 'text-primary drop-shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'text-slate-200'}">${session.scores ? session.scores[session.creator] || 0 : 0}</span>
+                    </div>
+                    <div class="flex flex-col justify-center text-xl font-black text-white/20 italic">VS</div>
+                    <div class="flex flex-col items-center flex-1 bg-black/40 border border-white/5 p-4 rounded-2xl ${session.winner === session.opponent ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]' : ''}">
+                        <span class="text-[10px] font-bold text-textMuted uppercase tracking-widest mb-1 truncate w-full max-w-[100px]">@${session.opponent || 'Waiting'}</span>
+                        <span class="text-4xl font-black ${session.opponent === userName ? 'text-primary drop-shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'text-slate-200'}">${session.scores ? session.scores[session.opponent] || 0 : 0}</span>
+                    </div>
+                </div>
+
+                ${session.status === 'playing' ? `
+                    <div class="bg-black/50 border border-white/10 rounded-3xl p-6 md:p-8 max-w-xl w-full mb-6 shadow-2xl relative overflow-hidden transform transition-all animate-toast-in">
+                        <h3 class="text-xl md:text-2xl font-bold text-white relative z-10 leading-relaxed min-h-[80px] flex items-center justify-center">
+                            ${session.currentQuestion === 'thinking...' ? '<i data-lucide="loader-2" class="animate-spin inline-block w-8 h-8 text-primary"></i>' : (session.currentQuestion || 'Preparing question...')}
+                        </h3>
+                    </div>
+                    <div class="flex flex-col items-center gap-3 w-full max-w-[400px] mb-6">
+                        <div class="flex gap-2 w-full">
+                            <input type="text" id="trivia-input" placeholder="Type your answer quickly!" onkeydown="if(event.key === 'Enter') submitTriviaGuess()" class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3.5 text-white outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner" ${session.currentQuestion === 'thinking...' ? 'disabled' : ''} autocomplete="off" />
+                            <button onclick="submitTriviaGuess()" class="px-6 bg-primary hover:bg-primaryHover text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95 disabled:opacity-50" ${session.currentQuestion === 'thinking...' ? 'disabled' : ''}>Guess</button>
+                        </div>
+                        <div class="text-[13px] h-6 flex items-center justify-center">
+                            ${lastGuessHTML}
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${session.status === 'waiting' && isCreator ? `
+                    <div class="flex gap-2 w-full max-w-sm mb-6 bg-black/30 p-2 rounded-2xl border border-white/5">
+                        <input type="text" id="trivia-topic-input" value="${session.topic}" class="flex-1 bg-transparent border-none px-4 py-2.5 text-white outline-none placeholder-textMuted text-sm" placeholder="Custom Topic (e.g., Science)"/>
+                        <button onclick="updateTriviaTopic('${session.id}')" class="px-4 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-xl transition-colors active:scale-95">Set Topic</button>
+                    </div>
+                ` : ''}
+
+                <div class="flex flex-wrap items-center justify-center gap-3 w-full max-w-[400px] mt-4">
+                    ${session.status === 'waiting' && isCreator ? `<button onclick="openModal('share_game', '${session.id}', 'trivia')" class="flex-1 min-w-[140px] py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="share-2" class="w-4 h-4"></i> Invite Friend</button>` : ''}
+                    ${session.status === 'finished' && isPlayer ? `<button onclick="resetTriviaGame('${session.id}')" class="flex-1 min-w-[140px] py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Rematch</button>` : ''}
+                    <button onclick="selectChat('game_trivia')" class="flex-1 min-w-[140px] py-3.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2">Leave Match</button>
+                </div>
+            </div>
+        `;
+        
+        // Auto focus input if playing
+        if (session.status === 'playing' && session.currentQuestion !== 'thinking...') {
+             setTimeout(() => {
+                 const input = document.getElementById('trivia-input');
+                 if (input) input.focus();
+             }, 100);
+        }
+        
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    window.updateTriviaTopic = async function(sessionId) {
+        const input = document.getElementById('trivia-topic-input');
+        if (!input || !input.value.trim()) return;
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                topic: input.value.trim()
+            });
+            alert("Topic updated! Invite a friend to start.");
+        } catch(e) { console.error(e); }
+    }
+
+    window.generateTriviaQuestion = async function(sessionId, topic) {
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                currentQuestion: 'thinking...',
+                lastGuess: null
+            });
+            
+            const prompt = `You are a live trivia game host. Generate exactly 1 fun trivia question about the topic "${topic}". Provide the question and a very short, simple answer (1-3 words max). Format exactly as: QUESTION|ANSWER. Example: What is the capital of Japan?|Tokyo. Return nothing else.`;
+            
+            let res = await callPollinationsAPI(`Generate trivia for topic: ${topic}`, prompt);
+            let parts = res.replace(/^"|"$/g, '').split('|');
+            
+            if (parts.length >= 2) {
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                    currentQuestion: parts[0].trim(),
+                    currentAnswer: parts[1].trim().toLowerCase()
+                });
+            } else {
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                    currentQuestion: "What is 2 + 2?",
+                    currentAnswer: "4"
+                });
+            }
+        } catch (e) { 
+            console.error("Trivia Gen Error:", e);
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                currentQuestion: "Error fetching question. Type 'retry' to try again.",
+                currentAnswer: "retry"
+            });
+        }
+    }
+
+    window.submitTriviaGuess = async function() {
+        const input = document.getElementById('trivia-input');
+        if (!input) return;
+        const guess = input.value.trim().toLowerCase();
+        if (!guess || !activeGameData || activeGameData.status !== 'playing' || activeGameData.currentQuestion === 'thinking...') return;
+        
+        input.value = '';
+
+        const session = activeGameData;
+        const ansClean = session.currentAnswer.replace(/[^\w\s]/g, '').trim();
+        const guessClean = guess.replace(/[^\w\s]/g, '').trim();
+
+        const isCorrect = guessClean === ansClean || 
+                          (guessClean.length > 3 && ansClean.includes(guessClean)) || 
+                          (ansClean.length > 3 && guessClean.includes(ansClean));
+
+        let updates = {
+            lastGuess: { sender: userName, text: guess, isCorrect }
+        };
+
+        if (isCorrect) {
+            // Lock out further guesses while loading next
+            updates.currentQuestion = 'thinking...'; 
+            
+            const currentScore = (session.scores[userName] || 0) + 1;
+            updates[`scores.${userName}`] = currentScore;
+            
+            if (currentScore >= session.targetScore) {
+                updates.status = 'finished';
+                updates.winner = userName;
+                awardXP(userName, 50); 
+                awardXP(session.creator === userName ? session.opponent : session.creator, 10);
+            }
+        }
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', session.id), updates);
+            
+            // If correct but not won, generate next
+            if (isCorrect && (session.scores[userName] || 0) + 1 < session.targetScore) {
+                 setTimeout(() => {
+                     generateTriviaQuestion(session.id, session.topic);
+                 }, 1500); // 1.5s delay to let them see "Correct!" before wiping it
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    window.resetTriviaGame = async function(sessionId) {
+        if (!activeGameData || activeGameData.id !== sessionId) return;
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'games', sessionId), {
+                status: 'playing',
+                winner: null,
+                currentQuestion: null,
+                currentAnswer: null,
+                lastGuess: null,
+                [`scores.${activeGameData.creator}`]: 0,
+                [`scores.${activeGameData.opponent}`]: 0
             });
         } catch(e) { console.error("Error resetting match", e); }
     }
