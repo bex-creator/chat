@@ -2377,33 +2377,25 @@
             document.getElementById('sidebar-user-img').src = currentPhotoURL;
 
             // --- VIRTUAL PET INITIALIZATION ---
-            // Auto-grant default pet if missing
-            if (!myProfile.pet) {
-                myProfile.pet = {
-                    type: 'pikachu',
-                    name: 'Pikachu',
-                    hunger: 100,
-                    happiness: 100,
-                    lastUpdate: Date.now()
-                };
-                updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
-                    pet: myProfile.pet
-                }).catch(e => console.log('Auto-adopt error', e));
-            }
-
-            // Always render the pet widget immediately on load
-            const petTypeData = PET_TYPES.find(p => p.id === myProfile.pet.type) || PET_TYPES[3]; // Fallback to Pikachu
-            let activeAcc = '';
-            if (myProfile.activeCosmetics && myProfile.activeCosmetics.pet_acc) {
-                const accItem = SHOP_ITEMS.find(i => i.id === myProfile.activeCosmetics.pet_acc);
-                if (accItem) activeAcc = accItem.class;
-            }
-            const hoursPassed = (Date.now() - (myProfile.pet.lastUpdate || Date.now())) / (1000 * 60 * 60);
-            const cHunger = Math.max(0, Math.min(100, myProfile.pet.hunger - (hoursPassed * 4)));
-            const cHappiness = Math.max(0, Math.min(100, myProfile.pet.happiness - (hoursPassed * 2)));
-            
-            if (window.updateSidebarPetWidget) {
-                window.updateSidebarPetWidget(myProfile, petTypeData.img, activeAcc, cHunger, cHappiness);
+            // Always render the pet widget immediately on load if they have one
+            if (myProfile.pet) {
+                const petTypeData = PET_TYPES.find(p => p.id === myProfile.pet.type) || PET_TYPES[3]; // Fallback to Pikachu
+                let activeAcc = '';
+                if (myProfile.activeCosmetics && myProfile.activeCosmetics.pet_acc) {
+                    const accItem = SHOP_ITEMS.find(i => i.id === myProfile.activeCosmetics.pet_acc);
+                    if (accItem) activeAcc = accItem.class;
+                }
+                const hoursPassed = (Date.now() - (myProfile.pet.lastUpdate || Date.now())) / (1000 * 60 * 60);
+                const cHunger = Math.max(0, Math.min(100, myProfile.pet.hunger - (hoursPassed * 4)));
+                const cHappiness = Math.max(0, Math.min(100, myProfile.pet.happiness - (hoursPassed * 2)));
+                
+                if (window.updateSidebarPetWidget) {
+                    window.updateSidebarPetWidget(myProfile, petTypeData.img, activeAcc, cHunger, cHappiness);
+                }
+            } else {
+                if (window.updateSidebarPetWidget) {
+                    window.updateSidebarPetWidget(myProfile, null, null, 0, 0);
+                }
             }
             // ----------------------------------
 
@@ -6164,9 +6156,36 @@
 
         let pet = myProfile.pet;
 
-        // Fallback just in case they haven't synced the auto-adopt yet
         if (!pet) {
-            pet = { type: 'pikachu', name: 'Pikachu', hunger: 100, happiness: 100, lastUpdate: Date.now() };
+            container.innerHTML = `
+                <div class="text-center py-6">
+                    <div class="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+                        <i data-lucide="egg" class="w-10 h-10 text-emerald-400"></i>
+                    </div>
+                    <h3 class="text-white text-xl font-bold mb-2">Adopt a Desk Pet!</h3>
+                    <p class="text-textMuted text-sm mb-4 max-w-[280px] mx-auto leading-relaxed">Save up <span class="text-yellow-400 font-bold">5,000 XP</span> to adopt your own virtual companion! (Or wait for an Admin to secretly gift you one 🎁)</p>
+                    
+                    <div class="bg-black/40 border border-yellow-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-inner mb-6">
+                       <i data-lucide="star" class="w-4 h-4 text-yellow-400"></i>
+                       <span class="text-yellow-400 font-bold text-sm tracking-widest">${myProfile.xp || 0} XP</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                        ${PET_TYPES.map(p => {
+                            const canAfford = (myProfile.xp || 0) >= 5000;
+                            return `
+                            <button onclick="adoptPet('${p.id}')" class="bg-black/40 hover:bg-white/10 border border-white/5 ${canAfford ? 'hover:border-emerald-500/50 cursor-pointer active:scale-95' : 'opacity-50 cursor-not-allowed'} p-3 rounded-2xl flex flex-col items-center justify-center transition-all group" ${canAfford ? '' : 'disabled'}>
+                                <span class="mb-2 h-10 flex items-end justify-center"><img src="${p.img}" class="h-10 w-auto object-contain pixelated ${canAfford ? 'group-hover:scale-110' : ''} transition-transform" /></span>
+                                <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest truncate w-full text-center mb-1">${p.name}</span>
+                                <span class="text-[9px] font-bold ${canAfford ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20'} px-1.5 py-0.5 rounded border">5000 XP</span>
+                            </button>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
         }
 
         // Calculate decayed stats visually
