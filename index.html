@@ -1163,229 +1163,284 @@
     </div>
   </div>
 
-  <!-- ==================== SUSPEND MODAL ==================== -->
+  <!-- ==================== ADMIN SUSPEND MODAL (FIXED) ==================== -->
   <div id="suspend-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[80] flex items-center justify-center p-4">
-    <div class="w-full max-w-md p-6 rounded-3xl bg-sidebarBg border border-white/10 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] flex flex-col">
-      <h2 class="text-xl font-bold text-white mb-5 tracking-tight">Restrict <span id="suspend-username-display" class="text-red-400"></span></h2>
+    <div class="w-full max-w-md p-6 rounded-3xl bg-sidebarBg border border-red-500/30 shadow-[0_0_50px_-12px_rgba(239,68,68,0.5)] flex flex-col">
+      <div class="flex justify-between items-center mb-5 border-b border-white/5 pb-4 shrink-0">
+          <h2 class="text-xl font-bold text-white tracking-tight">Restrict User: <span id="suspend-username-display" class="text-red-400"></span></h2>
+          <button onclick="closeSuspendModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+              <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+      </div>
       <form id="form-suspend" class="flex flex-col gap-4">
         <input type="hidden" id="suspend-target-userid" />
         
         <div>
           <label class="text-xs font-semibold text-slate-300 ml-1">Duration</label>
-          <select id="suspend-duration" class="w-full bg-inputBg border border-white/5 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 rounded-xl px-4 py-3.5 text-slate-100 outline-none transition-all mt-1">
+          <select id="suspend-duration" class="w-full bg-inputBg border border-white/5 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 rounded-xl px-4 py-3.5 text-slate-100 outline-none transition-all mt-1 cursor-pointer">
             <option value="1h">1 Hour</option>
-            <option value="24h">24 Hours</option>
+            <option value="24h" selected>24 Hours</option>
             <option value="7d">7 Days</option>
             <option value="30d">30 Days</option>
-            <option value="permanent">Permanent</option>
+            <option value="permanent">Permanent Ban</option>
           </select>
         </div>
-        
+
         <div>
           <label class="text-xs font-semibold text-slate-300 ml-1">Reason</label>
-          <input id="suspend-reason" type="text" placeholder="e.g. Violation of community guidelines" class="w-full bg-inputBg border border-white/5 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 rounded-xl px-4 py-3.5 text-slate-100 outline-none transition-all mt-1" required />
+          <input id="suspend-reason" type="text" placeholder="e.g. Spamming or harassment" class="w-full bg-inputBg border border-white/5 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 rounded-xl px-4 py-3.5 text-slate-100 outline-none transition-all mt-1" required />
         </div>
         
         <div class="flex gap-3 mt-4 pt-2 border-t border-white/5">
           <button type="button" onclick="closeSuspendModal()" class="flex-1 py-3.5 rounded-xl font-semibold text-slate-300 bg-white/5 hover:bg-white/10 transition-all">Cancel</button>
-          <button type="submit" class="flex-1 py-3.5 rounded-xl font-semibold text-white bg-red-600 hover:bg-red-500 transition-all shadow-lg shadow-red-500/20">Enforce</button>
+          <button type="submit" class="flex-1 py-3.5 rounded-xl font-semibold text-white bg-red-600 hover:bg-red-500 transition-all shadow-lg shadow-red-500/20 flex items-center justify-center gap-2"><i data-lucide="ban" class="w-4 h-4"></i> Apply</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ==================== USER LOGS MODAL ==================== -->
-  <div id="user-logs-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[90] flex items-center justify-center p-4">
-    <div class="w-full max-w-3xl p-6 rounded-3xl bg-sidebarBg border border-white/10 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] flex flex-col max-h-[90vh]">
-      <div class="flex items-center justify-between mb-2 border-b border-white/5 pb-4">
-        <h2 class="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
-          <i data-lucide="file-text" class="w-5 h-5 text-primary"></i> Chat Logs: <span id="logs-username-display" class="text-primary font-semibold"></span>
-        </h2>
-        <button onclick="closeUserLogsModal()" class="text-textMuted hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5">
-          <i data-lucide="x" class="w-5 h-5"></i>
+  <!-- ==================== VIBE CHECK MODAL ==================== -->
+  <div id="vibe-check-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+      <div class="w-full max-w-sm rounded-[32px] bg-sidebarBg border border-purple-500/30 shadow-[0_0_60px_-15px_rgba(168,85,247,0.4)] flex flex-col relative overflow-hidden animate-toast-in">
+          <div class="flex items-center justify-between p-5 border-b border-white/5">
+              <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="flame" class="w-5 h-5 text-purple-400"></i> Vibe Check</h2>
+              <button onclick="closeVibeCheckModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+          </div>
+          <div class="p-6 flex flex-col items-center text-center">
+              <div class="text-[10px] font-bold text-textMuted uppercase tracking-widest mb-3" id="vibe-check-target"></div>
+              <div class="w-16 h-16 bg-purple-500/10 border border-purple-500/20 rounded-full flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(168,85,247,0.2)]">
+                  <i data-lucide="sparkles" class="w-8 h-8 text-purple-400"></i>
+              </div>
+              <div id="vibe-check-content" class="text-slate-200 text-[15px] italic leading-relaxed"></div>
+          </div>
+      </div>
+  </div>
+
+  <!-- ==================== QUESTS MODAL ==================== -->
+  <div id="quests-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+      <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-blue-500/30 shadow-[0_0_60px_-15px_rgba(59,130,246,0.3)] flex flex-col max-h-[85vh] animate-toast-in">
+          <div class="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+              <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="target" class="w-5 h-5 text-blue-400"></i> Daily Quests</h2>
+              <button onclick="closeQuestsModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+          </div>
+          <div id="quests-container" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2"></div>
+      </div>
+  </div>
+
+  <!-- ==================== SHOP MODAL ==================== -->
+  <div id="shop-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+      <div class="w-full max-w-2xl p-6 rounded-[32px] bg-sidebarBg border border-pink-500/30 shadow-[0_0_60px_-15px_rgba(236,72,153,0.2)] flex flex-col max-h-[85vh] animate-toast-in">
+          <div class="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+              <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="shopping-cart" class="w-5 h-5 text-pink-400"></i> XP Shop</h2>
+              <div class="flex items-center gap-4">
+                  <div class="bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-xl shadow-inner flex items-center gap-1.5">
+                      <i data-lucide="star" class="w-4 h-4 text-yellow-400"></i>
+                      <span id="shop-xp-balance" class="text-yellow-400 font-bold text-sm">0 XP</span>
+                  </div>
+                  <button onclick="closeShopModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                      <i data-lucide="x" class="w-5 h-5"></i>
+                  </button>
+              </div>
+          </div>
+          <div class="flex-1 overflow-y-auto custom-scrollbar pr-2">
+              <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Name Effects</h3>
+              <div id="shop-container-names" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6"></div>
+              <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Chat Bubbles</h3>
+              <div id="shop-container-bubbles" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6"></div>
+              <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Pet Accessories</h3>
+              <div id="shop-container-pets" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2"></div>
+          </div>
+      </div>
+  </div>
+
+  <!-- ==================== PET MODAL ==================== -->
+  <div id="pet-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+      <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-emerald-500/30 shadow-[0_0_60px_-15px_rgba(16,185,129,0.2)] flex flex-col max-h-[85vh] animate-toast-in">
+          <div class="flex items-center justify-between mb-4 border-b border-white/5 pb-4 shrink-0">
+              <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="heart" class="w-5 h-5 text-emerald-400"></i> Virtual Desk Pet</h2>
+              <button onclick="closePetModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+          </div>
+          <div id="pet-container" class="flex-1 overflow-y-auto custom-scrollbar pr-2"></div>
+      </div>
+  </div>
+
+  <!-- ==================== PROFILE CARD MODAL ==================== -->
+  <div id="profile-card-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-[32px] bg-sidebarBg border border-white/10 shadow-[0_0_60px_-15px_rgba(255,255,255,0.15)] flex flex-col relative overflow-hidden animate-toast-in">
+        <!-- Close Button -->
+        <button onclick="closeProfileCard()" class="absolute top-4 right-4 z-20 bg-black/40 hover:bg-black/80 text-white p-2 rounded-full transition-colors backdrop-blur-md border border-white/10 shadow-sm">
+            <i data-lucide="x" class="w-4 h-4"></i>
         </button>
-      </div>
-      <p class="text-[11px] text-textMuted mb-4 ml-1">Showing up to the last 500 messages sent by this user.</p>
-      <div id="user-logs-container" class="flex-1 overflow-y-auto pr-3 space-y-3 custom-scrollbar">
-        <!-- Logs injected here -->
-      </div>
+
+        <!-- VIEW MODE -->
+        <div id="pc-view-mode" class="flex flex-col w-full h-full">
+            <!-- Banner -->
+            <div class="h-32 w-full bg-black/40 relative border-b border-white/5 flex items-center justify-center overflow-hidden">
+                <i id="pc-banner-placeholder" data-lucide="image" class="w-8 h-8 text-white/10 absolute"></i>
+                <img id="pc-banner" src="" class="w-full h-full object-cover hidden relative z-10" />
+                <div class="absolute inset-0 bg-gradient-to-t from-sidebarBg via-sidebarBg/50 to-transparent z-10"></div>
+            </div>
+
+            <!-- Avatar & Content -->
+            <div class="px-6 pb-6 relative flex flex-col items-center -mt-12 z-20">
+                <div class="relative group">
+                    <img id="pc-avatar" src="" class="w-24 h-24 rounded-full border-[4px] border-sidebarBg object-cover bg-inputBg relative z-10 shadow-xl" />
+                </div>
+                
+                <h2 id="pc-nickname" class="text-2xl font-black text-white mt-3 tracking-tight leading-none text-center"></h2>
+                <p id="pc-username" class="text-[13px] font-medium text-textMuted mb-3"></p>
+                
+                <div id="pc-badges" class="flex flex-wrap items-center justify-center gap-1.5 mb-5"></div>
+
+                <!-- Bio -->
+                <div class="w-full bg-black/30 border border-white/5 rounded-2xl p-4 mb-5 relative overflow-hidden group shadow-inner">
+                    <i data-lucide="quote" class="absolute -top-1 -left-1 w-8 h-8 text-white/5 group-hover:text-primary/10 transition-colors"></i>
+                    <p id="pc-bio" class="text-[13px] text-slate-300 italic text-center relative z-10 font-medium leading-relaxed px-2">"No bio set yet."</p>
+                </div>
+
+                <!-- Stats & Pet -->
+                <div class="flex items-center justify-between w-full gap-3 mb-2">
+                    <div class="flex-1 bg-black/30 border border-white/5 rounded-2xl p-3 flex flex-col items-center justify-center hover:border-yellow-500/30 transition-colors shadow-inner h-[86px]">
+                        <i data-lucide="star" class="w-5 h-5 text-yellow-400 mb-1 drop-shadow-sm"></i>
+                        <span id="pc-xp" class="text-white font-black text-lg drop-shadow-sm">0</span>
+                        <span class="text-[9px] text-textMuted uppercase tracking-widest font-bold">XP</span>
+                    </div>
+                    <div class="flex-1 bg-black/30 border border-white/5 rounded-2xl p-3 flex flex-col items-center relative overflow-hidden h-[86px] shadow-inner">
+                        <span class="text-[9px] text-textMuted uppercase tracking-widest font-bold absolute top-2.5 z-10">Companion</span>
+                        <div id="pc-pet-container" class="absolute bottom-1 w-full flex justify-center scale-110">
+                            <!-- Pet injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edit Button -->
+                <button id="pc-btn-edit" onclick="toggleProfileEditMode()" class="hidden w-full mt-3 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i> Edit Profile Card
+                </button>
+            </div>
+        </div>
+
+        <!-- EDIT MODE -->
+        <div id="pc-edit-mode" class="hidden flex flex-col w-full h-full p-6">
+            <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2 border-b border-white/5 pb-4"><i data-lucide="edit-3" class="w-5 h-5 text-primary"></i> Edit Profile Card</h3>
+            
+            <div class="space-y-4 mb-6 flex-1">
+                <div>
+                    <label class="block text-xs font-bold text-textMuted uppercase tracking-widest mb-1.5 ml-1">Banner Image URL</label>
+                    <input type="text" id="pc-edit-banner" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all text-sm shadow-inner" placeholder="https://example.com/image.jpg" />
+                    <p class="text-[10px] text-slate-500 mt-1.5 ml-1">Paste a direct link to an image or GIF.</p>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-textMuted uppercase tracking-widest mb-1.5 ml-1">About Me (Bio)</label>
+                    <textarea id="pc-edit-bio" rows="4" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all resize-none text-[13px] custom-scrollbar shadow-inner" placeholder="Write a short bio about yourself..."></textarea>
+                </div>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="window.openProfileCard(userName)" class="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-bold transition-all border border-transparent hover:border-white/10 active:scale-95">Cancel</button>
+                <button id="pc-btn-save" onclick="saveProfileCard()" class="flex-1 py-3.5 bg-primary hover:bg-primaryHover text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">Save</button>
+            </div>
+        </div>
     </div>
   </div>
 
-  <!-- ==================== EDIT HISTORY MODAL ==================== -->
-  <div id="history-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[90] flex items-center justify-center p-4">
-    <div class="w-full max-w-2xl p-6 rounded-3xl bg-sidebarBg border border-white/10 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] flex flex-col max-h-[80vh]">
-      <div class="flex items-center justify-between mb-4 border-b border-white/5 pb-4 shrink-0">
-        <h2 class="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
-          <i data-lucide="history" class="w-5 h-5 text-primary"></i> Message Edit History
-        </h2>
-        <button onclick="closeHistoryModal()" class="text-textMuted hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-      <div id="history-container" class="flex-1 overflow-y-auto pr-3 space-y-3 custom-scrollbar">
-        <!-- History injected here -->
-      </div>
+  <!-- ==================== REACTION MODAL ==================== -->
+  <div id="reaction-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-[32px] bg-sidebarBg border border-white/10 shadow-[0_0_60px_-15px_rgba(255,255,255,0.15)] flex flex-col relative overflow-hidden animate-toast-in">
+        <div class="flex items-center justify-between p-5 border-b border-white/5">
+            <h2 class="text-xl font-bold text-white tracking-tight">Add Reaction</h2>
+            <button onclick="closeReactionModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="p-4 flex justify-center">
+            <emoji-picker id="msg-emoji-picker" class="dark" style="--background: transparent; --border-color: transparent; --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: #1F2433; --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
+        </div>
     </div>
   </div>
 
-  <!-- ==================== NEW MODALS ==================== -->
-  
-  <!-- UI EDIT CONTEXT MENU -->
-  <div id="ui-edit-context-menu" class="hidden fixed z-[200] w-56 bg-sidebarBg/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden py-1 text-sm transition-opacity">
-    <div class="px-3 py-2 border-b border-white/5 mb-1 bg-white/5 flex items-center justify-between">
-       <span class="text-[10px] font-bold text-textMuted uppercase tracking-widest" id="ui-edit-target-name">Target</span>
-       <i data-lucide="edit-3" class="w-3 h-3 text-textMuted"></i>
-    </div>
-    <button id="btn-edit-bg-color" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/10 transition-colors flex items-center gap-2">
-      <i data-lucide="paint-bucket" class="w-4 h-4 text-primary"></i> Background Color
-    </button>
-    <div class="px-3 py-1.5 flex flex-col gap-1 border-b border-white/5 pb-2">
-        <label class="text-[11px] text-textMuted flex justify-between">
-            <span>Background Opacity</span>
-            <span id="ui-edit-opacity-val">90%</span>
-        </label>
-        <input type="range" id="ui-edit-opacity-slider" min="0" max="100" value="90" class="w-full accent-primary cursor-pointer" />
-    </div>
-    <button id="btn-edit-text-color" class="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/10 transition-colors flex items-center gap-2">
-      <i data-lucide="type" class="w-4 h-4 text-primary"></i> Text Color
-    </button>
-    <div class="px-3 py-1.5 flex flex-col gap-1 border-b border-white/5 pb-2">
-        <label class="text-[11px] text-textMuted flex justify-between">
-            <span>Text Readability Shadow</span>
-            <span id="ui-edit-shadow-val">0px</span>
-        </label>
-        <input type="range" id="ui-edit-shadow-slider" min="0" max="20" value="0" class="w-full accent-primary cursor-pointer" />
-    </div>
-    <div class="h-px bg-white/5 my-1"></div>
-    <button id="btn-edit-reset" class="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-2">
-      <i data-lucide="rotate-ccw" class="w-4 h-4 text-red-400"></i> Reset Style
-    </button>
-  </div>
-  <input type="color" id="hidden-bg-color-picker" class="hidden" />
-  <input type="color" id="hidden-text-color-picker" class="hidden" />
-
-  <!-- REACTION MODAL -->
-  <div id="reaction-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeReactionModal()"></div>
-    <div class="relative bg-sidebarBg border border-border rounded-2xl shadow-2xl overflow-hidden p-2 animate-toast-in">
-        <emoji-picker class="dark" id="msg-emoji-picker" style="--background: #0B0E14; --border-color: #1F2433; --category-icon-color: #8B94A5; --indicator-color: var(--theme-primary); --input-border-color: #1F2433; --input-font-color: #e2e8f0; --num-columns: 8;"></emoji-picker>
-    </div>
-  </div>
-
-  <!-- PINNED MESSAGES MODAL -->
-  <div id="pinned-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[85] flex items-center justify-center p-4">
-    <div class="w-full max-w-2xl p-6 rounded-3xl bg-sidebarBg border border-primary/20 shadow-[0_0_50px_-12px_rgba(99,102,241,0.2)] flex flex-col max-h-[85vh]">
-        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="pin" class="w-5 h-5 text-primary"></i> Pinned Messages
-            </h2>
+  <!-- ==================== PINNED MESSAGES MODAL ==================== -->
+  <div id="pinned-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[95] flex items-center justify-center p-4">
+    <div class="w-full max-w-lg p-6 rounded-[32px] bg-sidebarBg border border-white/10 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)] flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+            <h2 class="text-xl font-bold text-primary tracking-tight flex items-center gap-2"><i data-lucide="pin" class="w-5 h-5"></i> Pinned Messages</h2>
             <button onclick="closePinnedModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
-        <div id="pinned-messages-container" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+        <div id="pinned-messages-container" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
             <!-- Pinned msgs injected here -->
         </div>
     </div>
   </div>
 
-  <!-- LEADERBOARD MODAL -->
-  <div id="leaderboard-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
-    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-yellow-500/30 shadow-[0_0_60px_-15px_rgba(234,179,8,0.2)] flex flex-col max-h-[85vh]">
-        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="trophy" class="w-6 h-6 text-yellow-500"></i> Global Leaderboard
-            </h2>
-            <button onclick="closeLeaderboardModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+  <!-- ==================== EDIT HISTORY MODAL ==================== -->
+  <div id="history-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    <div class="w-full max-w-lg p-6 rounded-[32px] bg-sidebarBg border border-white/10 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)] flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+            <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="history" class="w-5 h-5 text-textMuted"></i> Edit History</h2>
+            <button onclick="closeHistoryModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
-        <div id="leaderboard-container" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            <!-- Leaderboard injected here -->
+        <div id="history-container" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+            <!-- History injected here -->
         </div>
     </div>
   </div>
 
-  <!-- QUESTS MODAL -->
-  <div id="quests-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
-    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-blue-500/30 shadow-[0_0_60px_-15px_rgba(59,130,246,0.2)] flex flex-col max-h-[85vh]">
-        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="target" class="w-6 h-6 text-blue-400"></i> Daily Quests
-            </h2>
-            <button onclick="closeQuestsModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+  <!-- ==================== USER LOGS MODAL ==================== -->
+  <div id="user-logs-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl p-6 rounded-[32px] bg-sidebarBg border border-white/10 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)] flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+            <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5 text-textMuted"></i> Chat Logs: <span id="logs-username-display" class="text-primary"></span></h2>
+            <button onclick="closeUserLogsModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
-        <div id="quests-container" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-            <!-- Quests injected here -->
+        <div id="user-logs-container" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+            <!-- Logs injected here -->
         </div>
     </div>
   </div>
 
-  <!-- PET MODAL -->
-  <div id="pet-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
-    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-emerald-500/30 shadow-[0_0_60px_-15px_rgba(16,185,129,0.2)] flex flex-col max-h-[85vh] animate-toast-in">
-        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="heart" class="w-6 h-6 text-emerald-400 fill-emerald-400/20"></i> Virtual Desk Pet
-            </h2>
-            <button onclick="closePetModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-        <div id="pet-container" class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-            <!-- Pet UI injected here -->
-        </div>
-    </div>
-  </div>
+  <!-- ==================== UI EDIT CONTEXT MENU ==================== -->
+  <div id="ui-edit-context-menu" class="hidden fixed z-[9999] w-64 bg-sidebarBg border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-toast-in text-sm select-none">
+      <div class="p-3 border-b border-white/5 bg-black/20 flex items-center justify-between">
+          <span class="font-bold text-white flex items-center gap-1.5"><i data-lucide="edit-3" class="w-4 h-4 text-purple-400"></i> Editing</span>
+          <span id="ui-edit-target-name" class="text-[10px] text-purple-400 font-bold uppercase tracking-widest bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20"></span>
+      </div>
+      <div class="p-2 flex flex-col gap-1">
+          <button id="btn-edit-bg-color" class="flex items-center gap-2 w-full text-left px-3 py-2 text-slate-200 hover:bg-white/5 rounded-xl transition-colors"><div class="w-4 h-4 rounded-full border border-white/20 bg-gradient-to-br from-indigo-500 to-purple-500"></div> Background Color</button>
+          <button id="btn-edit-text-color" class="flex items-center gap-2 w-full text-left px-3 py-2 text-slate-200 hover:bg-white/5 rounded-xl transition-colors"><i data-lucide="type" class="w-4 h-4 text-textMuted"></i> Text Color</button>
+          
+          <div class="px-3 py-2 mt-1">
+              <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-semibold text-slate-300">Opacity</span>
+                  <span id="ui-edit-opacity-val" class="text-[10px] text-textMuted font-bold">90%</span>
+              </div>
+              <input type="range" id="ui-edit-opacity-slider" min="0" max="100" value="90" class="w-full h-1.5 bg-black/50 rounded-lg appearance-none cursor-pointer outline-none">
+          </div>
 
-  <!-- SHOP MODAL -->
-  <div id="shop-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
-    <div class="w-full max-w-2xl p-6 rounded-[32px] bg-sidebarBg border border-pink-500/30 shadow-[0_0_60px_-15px_rgba(236,72,153,0.2)] flex flex-col max-h-[85vh]">
-        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="shopping-cart" class="w-6 h-6 text-pink-400"></i> Cosmetic Shop
-            </h2>
-            <div class="flex items-center gap-4">
-                <div class="bg-black/40 border border-yellow-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-inner">
-                   <i data-lucide="star" class="w-4 h-4 text-yellow-400"></i>
-                   <span id="shop-xp-balance" class="text-yellow-400 font-bold text-sm tracking-widest">0 XP</span>
-                </div>
-                <button onclick="closeShopModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-        </div>
-        <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-            <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Name Effects</h3>
-            <div id="shop-container-names" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6"></div>
-            
-            <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Chat Bubbles</h3>
-            <div id="shop-container-bubbles" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-6"></div>
+          <div class="px-3 py-2 border-b border-white/5 pb-3">
+              <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-semibold text-slate-300">Text Shadow</span>
+                  <span id="ui-edit-shadow-val" class="text-[10px] text-textMuted font-bold">0px</span>
+              </div>
+              <input type="range" id="ui-edit-shadow-slider" min="0" max="20" value="0" class="w-full h-1.5 bg-black/50 rounded-lg appearance-none cursor-pointer outline-none">
+          </div>
 
-            <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Pet Accessories</h3>
-            <div id="shop-container-pets" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2"></div>
-        </div>
-    </div>
-  </div>
-
-  <!-- VIBE CHECK MODAL -->
-  <div id="vibe-check-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-purple-500/30 shadow-[0_0_60px_-15px_rgba(168,85,247,0.2)] flex flex-col items-center text-center animate-toast-in">
-        <div class="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(168,85,247,0.2)]">
-            <i data-lucide="flame" class="w-8 h-8 text-purple-400"></i>
-        </div>
-        <h2 class="text-2xl font-bold text-white mb-1 tracking-tight">AI Vibe Check</h2>
-        <h3 id="vibe-check-target" class="text-[11px] font-bold text-purple-400 mb-5 uppercase tracking-widest bg-purple-500/10 px-3 py-1 rounded-lg border border-purple-500/20"></h3>
-        
-        <div id="vibe-check-content" class="text-[14px] text-slate-200 leading-relaxed bg-black/40 border border-white/5 p-5 rounded-2xl w-full mb-6 min-h-[100px] flex items-center justify-center shadow-inner italic">
-            <!-- Loading or Content injected here -->
-        </div>
-        
-        <button onclick="closeVibeCheckModal()" class="w-full py-3.5 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold transition-all border border-white/10 hover:border-white/20 active:scale-95">Close</button>
-    </div>
+          <button id="btn-edit-reset" class="flex items-center gap-2 w-full text-left px-3 py-2 mt-1 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Reset to Default</button>
+      </div>
+      <input type="color" id="hidden-bg-color-picker" class="hidden" />
+      <input type="color" id="hidden-text-color-picker" class="hidden" />
   </div>
 
   <!-- ==================== SCRIPT ==================== -->
@@ -4142,7 +4197,7 @@
               let roleBadge = '';
               let nameClass = 'text-slate-200';
               let nameStyle = '';
-              let bubbleBorderClass = 'border border-white/5';
+              let bubbleBorderClass = '';
               let isVIP = false;
               const isNexus = msg.sender === 'nexus_ai';
 
@@ -4163,8 +4218,6 @@
               if (isNexus) {
                   roleBadge = '<span class="text-[9px] bg-primary/20 text-indigo-300 border border-primary/30 px-1.5 rounded font-black tracking-tighter shadow-sm flex items-center gap-1 inline-flex"><i data-lucide="sparkles" class="w-2.5 h-2.5"></i> AI</span>';
                   nameClass = 'text-primary font-black drop-shadow-sm';
-                  bubbleBorderClass = 'border border-primary/40 shadow-[0_0_15px_rgba(99,102,241,0.15)] bg-gradient-to-br from-sidebarBg to-primary/5';
-                  pColor = 'bg-primary animate-pulse'; // Cool AI presence dot
               } else if (role === 'ADMIN') {
                   roleBadge = '<span class="text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 rounded font-black tracking-tighter shadow-sm">ADMIN</span>';
               } else if (role === 'DEV') {
@@ -5878,16 +5931,22 @@
         activeReactionMsgId = msgId;
         document.getElementById('reaction-modal').classList.remove('hidden');
     }
+    
     window.closeReactionModal = function() {
         activeReactionMsgId = null;
         document.getElementById('reaction-modal').classList.add('hidden');
     }
-    document.getElementById('msg-emoji-picker').addEventListener('emoji-click', event => {
-        if (activeReactionMsgId) {
-            toggleReaction(activeReactionMsgId, event.detail.unicode);
-            closeReactionModal();
-        }
-    });
+    
+    const msgEmojiPicker = document.getElementById('msg-emoji-picker');
+    if (msgEmojiPicker) {
+        msgEmojiPicker.addEventListener('emoji-click', event => {
+            if (activeReactionMsgId) {
+                toggleReaction(activeReactionMsgId, event.detail.unicode);
+                closeReactionModal();
+            }
+        });
+    }
+
     window.toggleReaction = async function(msgId, emoji) {
         const msg = allMessages.find(m => m.id === msgId);
         if (!msg) return;
@@ -6014,7 +6073,7 @@
             const nameColorStyle = u.nameColor && u.nameColor !== '#ffffff' ? `color: ${u.nameColor}; text-shadow: 0 0 10px ${u.nameColor}40;` : '';
 
             return `
-                <div class="flex items-center gap-3 p-3 bg-black/20 border border-white/5 rounded-2xl hover:bg-white/5 transition-colors group">
+                <div class="flex items-center gap-3 p-3 bg-black/20 border border-white/5 rounded-2xl hover:bg-white/5 transition-colors group cursor-pointer" onclick="openProfileCard('${u.id.replace(/'/g, "\\'")}')">
                     <div class="w-6 flex justify-center flex-shrink-0">${rankMedal}</div>
                     <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-white/10 bg-inputBg" />
                     <div class="flex-1 min-w-0">
@@ -6029,7 +6088,7 @@
                         <div class="flex flex-col items-end mr-1">
                             <span class="text-sm font-black text-slate-300 drop-shadow-sm">${u.xp || 0} XP</span>
                         </div>
-                        <button onclick="vibeCheckUser('${u.username.replace(/'/g, "\\'")}')" class="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 p-2 rounded-xl transition-all shadow-sm" title="Vibe Check / Roast">
+                        <button onclick="event.stopPropagation(); vibeCheckUser('${u.username.replace(/'/g, "\\'")}')" class="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 p-2 rounded-xl transition-all shadow-sm relative z-10" title="Vibe Check / Roast">
                             <i data-lucide="flame" class="w-4 h-4 transform group-hover:scale-110 transition-transform"></i>
                         </button>
                     </div>
@@ -6048,6 +6107,143 @@
     window.closeQuestsModal = function() {
         document.getElementById('quests-modal').classList.add('hidden');
     }
+
+    // --- PROFILE CARD LOGIC ---
+    
+    // Override Sidebar User Profile click
+    const editBtnElement = document.getElementById('btn-edit-profile');
+    if (editBtnElement) {
+        editBtnElement.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (userName) window.openProfileCard(userName.toLowerCase());
+        };
+    }
+
+    window.openProfileCard = function(userId) {
+        const u = allAppUsers.find(x => x.id === userId.toLowerCase());
+        if (!u) return;
+
+        window.currentProfileCardUser = u;
+
+        // Reset to view mode
+        document.getElementById('pc-view-mode').classList.remove('hidden');
+        document.getElementById('pc-edit-mode').classList.add('hidden');
+
+        // Populate Banner
+        const bannerImg = document.getElementById('pc-banner');
+        const placeholder = document.getElementById('pc-banner-placeholder');
+        if (u.bannerURL) {
+            bannerImg.src = u.bannerURL;
+            bannerImg.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        } else {
+            bannerImg.src = '';
+            bannerImg.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+        }
+
+        // Populate Avatar
+        document.getElementById('pc-avatar').src = u.photoURL || 'https://via.placeholder.com/150';
+
+        // Nickname & Username
+        const nickEl = document.getElementById('pc-nickname');
+        nickEl.textContent = u.nickname || u.username;
+        if (u.nameColor && u.nameColor !== '#ffffff') {
+            nickEl.style.color = u.nameColor;
+            nickEl.style.textShadow = `0 0 10px ${u.nameColor}40`;
+        } else {
+            nickEl.style.color = '';
+            nickEl.style.textShadow = '';
+        }
+        document.getElementById('pc-username').textContent = `@${u.username}`;
+
+        // Bio
+        document.getElementById('pc-bio').textContent = u.bio ? `"${u.bio}"` : '"No bio set yet."';
+
+        // XP
+        document.getElementById('pc-xp').textContent = u.xp || 0;
+
+        // Badges
+        let badgesHtml = `<span class="text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2.5 py-0.5 rounded-full font-bold tracking-wider">Lv.${window.getLevel(u.xp)}</span>`;
+        if (u.role === 'DEV') badgesHtml += `<span class="text-[10px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-black tracking-wider shadow-[0_0_10px_rgba(99,102,241,0.2)]">DEV</span>`;
+        else if (u.role === 'ADMIN') badgesHtml += `<span class="text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-0.5 rounded-full font-black tracking-wider shadow-[0_0_10px_rgba(239,68,68,0.2)]">ADMIN</span>`;
+        else if (u.role === 'MOD') badgesHtml += `<span class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-black tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.2)]">MOD</span>`;
+        else if (u.role === 'VIP') badgesHtml += `<span class="text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2.5 py-0.5 rounded-full font-black tracking-wider shadow-[0_0_10px_rgba(234,179,8,0.2)]">VIP</span>`;
+        
+        document.getElementById('pc-badges').innerHTML = badgesHtml;
+
+        // Pet rendering on card
+        const petContainer = document.getElementById('pc-pet-container');
+        if (u.pet) {
+            const petData = PET_TYPES.find(p => p.id === u.pet.type) || PET_TYPES[3];
+            let activeAcc = '';
+            if (u.activeCosmetics && u.activeCosmetics.pet_acc) {
+                const accItem = SHOP_ITEMS.find(i => i.id === u.activeCosmetics.pet_acc);
+                if (accItem) activeAcc = accItem.class;
+            }
+            petContainer.innerHTML = `
+                <div class="relative animate-pet-walk-bob mt-1">
+                    <img src="${petData.img}" class="h-10 w-auto object-contain pixelated drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
+                    ${activeAcc ? `<span class="absolute -top-3 -right-2 text-sm transform rotate-12 drop-shadow-sm">${activeAcc}</span>` : ''}
+                </div>
+            `;
+        } else {
+            petContainer.innerHTML = `<span class="text-[10px] text-slate-500 mt-5 font-bold uppercase tracking-widest">No Pet</span>`;
+        }
+
+        const editBtn = document.getElementById('pc-btn-edit');
+        if (u.id === userName.toLowerCase()) {
+            editBtn.classList.remove('hidden');
+        } else {
+            editBtn.classList.add('hidden');
+        }
+
+        document.getElementById('profile-card-modal').classList.remove('hidden');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    window.closeProfileCard = function() {
+        document.getElementById('profile-card-modal').classList.add('hidden');
+    };
+
+    window.toggleProfileEditMode = function() {
+        const u = window.currentProfileCardUser;
+        if (!u || u.id !== userName.toLowerCase()) return;
+        
+        document.getElementById('pc-view-mode').classList.add('hidden');
+        document.getElementById('pc-edit-mode').classList.remove('hidden');
+        
+        document.getElementById('pc-edit-bio').value = u.bio || '';
+        document.getElementById('pc-edit-banner').value = u.bannerURL || '';
+    };
+
+    window.saveProfileCard = async function() {
+        const bio = document.getElementById('pc-edit-bio').value.trim();
+        const bannerURL = document.getElementById('pc-edit-banner').value.trim();
+        const saveBtn = document.getElementById('pc-btn-save');
+        
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Saving...';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                bio: bio,
+                bannerURL: bannerURL
+            });
+            // Re-open with updated data slightly delayed to allow firestore sync
+            setTimeout(() => {
+                 window.openProfileCard(userName.toLowerCase());
+                 saveBtn.disabled = false;
+                 saveBtn.innerHTML = 'Save';
+            }, 400);
+        } catch(e) {
+            console.error("Failed to save profile", e);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = 'Save';
+        }
+    };
 
     // --- VIRTUAL PET LOGIC ---
     window.openPetModal = function() {
