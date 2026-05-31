@@ -1,49 +1,22 @@
-<script>
-    // Dictionary of custom cursors based on theme names
-    const themeCursors = {
-        // Default system cursor
-        'default': { default: 'auto', pointer: 'pointer' },
-        
-        // Cyberpunk: A glowing neon cyan crosshair
-        'cyberpunk': {
-            default: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path fill='%2300ffff' d='M11 0h2v11h11v2H13v11h-2V13H0v-2h11V0z'/></svg>") 12 12, crosshair`,
-            pointer: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path fill='%23ff0055' d='M11 0h2v11h11v2H13v11h-2V13H0v-2h11V0z'/></svg>") 12 12, pointer`
-        },
-        
-        // Synthwave/Retro: A pixelated space invader emoji
-        'synthwave': {
-            default: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' style='font-size: 24px'><text y='24'>👾</text></svg>") 0 0, auto`,
-            pointer: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' style='font-size: 24px'><text y='24'>🕹️</text></svg>") 0 0, pointer`
-        },
-        
-        // Lofi/Cozy: A coffee cup
-        'lofi': {
-            default: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' style='font-size: 24px'><text y='24'>☕</text></svg>") 0 0, auto`,
-            pointer: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' style='font-size: 24px'><text y='24'>✨</text></svg>") 0 0, pointer`
-        },
-
-        // Fantasy/RPG: A tiny sword
-        'fantasy': {
-            default: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' style='font-size: 24px'><text y='24'>🗡️</text></svg>") 0 0, auto`,
-            pointer: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' style='font-size: 24px'><text y='24'>🪄</text></svg>") 0 0, pointer`
-        }
-    };
-
-    function applyThemeCursor(themeName) {
-        // Fallback to 'default' if the theme isn't in our dictionary
-        const cursorSet = themeCursors[themeName.toLowerCase()] || themeCursors['default'];
-        
-        // Update the CSS variables on the root document
-        document.documentElement.style.setProperty('--theme-cursor', cursorSet.default);
-        document.documentElement.style.setProperty('--theme-pointer', cursorSet.pointer);
-    }
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Space</title>
+  
+  <!-- Pre-load Theme to prevent FOUC -->
+  <script>
     function getDynamicThemeData() {
         const hour = new Date().getHours();
-        if (hour >= 6 && hour < 18) {
-            return { p: '#0ea5e9', ph: '#0284c7', bg: 'url("https://t4.ftcdn.net/jpg/13/80/07/97/360_F_1380079720_ezzVCiKuoGr5vObzznpje5gdkaIIKMsI.jpg")' };
-        } else {
-            return { p: '#6366f1', ph: '#4f46e5', bg: 'none' };
+        if (hour >= 5 && hour < 10) { // Morning
+            return { p: '#0ea5e9', ph: '#0284c7', bg: 'url("https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=2070&auto=format&fit=crop")' };
+        } else if (hour >= 10 && hour < 16) { // Day
+            return { p: '#10b981', ph: '#059669', bg: 'url("https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=2070&auto=format&fit=crop")' };
+        } else if (hour >= 16 && hour < 20) { // Sunset
+            return { p: '#f97316', ph: '#ea580c', bg: 'url("https://t4.ftcdn.net/jpg/13/80/07/97/360_F_1380079720_ezzVCiKuoGr5vObzznpje5gdkaIIKMsI.jpg")' };
+        } else { // Night
+            return { p: '#8b5cf6', ph: '#7c3aed', bg: 'url("https://images.unsplash.com/photo-1488866022504-f2584929ca5f?q=80&w=2062&auto=format&fit=crop")' };
         }
     }
 
@@ -67,11 +40,20 @@
     let t = window.appThemes[savedTheme] || window.appThemes.indigo;
     if (t.isDynamic) t = getDynamicThemeData();
 
+    window.updateThemeCursor = function(color) {
+        const hex = encodeURIComponent(color);
+        // Beautiful standard arrow mapped to theme
+        const arrowSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><path d='M2 2 L2 24 L10 16 L16 26 L20 24 L14 14 L24 14 Z' fill='${hex}' stroke='white' stroke-width='1.5' stroke-linejoin='round'/></svg>`;
+        // Hand pointer mapped to theme
+        const pointerSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24'><path d='M18 11V9a2 2 0 0 0-2-2v0a2 2 0 0 0-2-2v0a2 2 0 0 0-2-2h-.18A2 2 0 0 0 10 5v6H8a2 2 0 0 0-2 2v2a6 6 0 0 0 6 6h2a6 6 0 0 0 6-6v-6Z' fill='${hex}' stroke='white' stroke-width='1.5' stroke-linejoin='round' stroke-linecap='round'/></svg>`;
+        
+        document.documentElement.style.setProperty('--theme-cursor', `url("data:image/svg+xml;utf8,${arrowSvg}") 2 2, auto`);
+        document.documentElement.style.setProperty('--theme-cursor-pointer', `url("data:image/svg+xml;utf8,${pointerSvg}") 10 5, pointer`);
+    };
+
     document.documentElement.style.setProperty('--theme-primary', t.p);
     document.documentElement.style.setProperty('--theme-primary-hover', t.ph);
-
-    // Apply cursor on initial load
-    applyThemeCursor(savedTheme);
+    window.updateThemeCursor(t.p);
   </script>
 
   <!-- Google Fonts: Inter -->
@@ -118,16 +100,33 @@
     :root {
         --theme-primary: #6366f1;
         --theme-primary-hover: #4f46e5;
-        --theme-cursor: auto;
-        --theme-pointer: pointer;
     }
-
-    body {
-        cursor: var(--theme-cursor) !important;
+    
+    /* Theme Cursor Overrides */
+    body, html, .bg-mainBg, .bg-sidebarBg, .bg-pattern {
+        cursor: var(--theme-cursor, auto);
     }
-
-    button, a, select, [onclick], .cursor-pointer {
-        cursor: var(--theme-pointer) !important;
+    
+    body .cursor-default {
+        cursor: var(--theme-cursor, default);
+    }
+    
+    body .cursor-pointer, 
+    body button:not(:disabled), 
+    body a, 
+    body select, 
+    body input[type="file"], 
+    body label.cursor-pointer, 
+    body [role="button"] {
+        cursor: var(--theme-cursor-pointer, pointer);
+    }
+    
+    body input[type="text"], 
+    body input[type="email"], 
+    body input[type="password"], 
+    body input[type="number"], 
+    body textarea {
+        cursor: text;
     }
     
     /* Clean Custom Scrollbar */
@@ -1685,6 +1684,7 @@
 
         document.documentElement.style.setProperty('--theme-primary', t.p);
         document.documentElement.style.setProperty('--theme-primary-hover', t.ph);
+        window.updateThemeCursor(t.p);
         
         const globalBg = document.getElementById('global-theme-bg');
         
@@ -1698,11 +1698,6 @@
         }
         
         localStorage.setItem('chat_theme', name);
-
-        // Update the cursor dynamically based on the newly selected theme
-        if (typeof applyThemeCursor === 'function') {
-            applyThemeCursor(name);
-        }
 
         // Re-evaluate background priorities immediately when changing themes
         if (typeof updateChatBackground === 'function' && typeof allChats !== 'undefined' && typeof activeChatId !== 'undefined') {
@@ -3943,9 +3938,11 @@
         if (activeChat && activeChat.chatBgColor && !currentT.bg) {
             document.documentElement.style.setProperty('--theme-primary', activeChat.chatBgColor.p);
             document.documentElement.style.setProperty('--theme-primary-hover', activeChat.chatBgColor.ph);
+            window.updateThemeCursor(activeChat.chatBgColor.p);
         } else {
             document.documentElement.style.setProperty('--theme-primary', currentT.p);
             document.documentElement.style.setProperty('--theme-primary-hover', currentT.ph);
+            window.updateThemeCursor(currentT.p);
         }
     }
 
@@ -8287,15 +8284,5 @@
     })();
 
   </script>
-```
-
-### 3. Trigger the Change
-Finally, you just need to call this function whenever a user changes their theme. Find the function in your code that handles theme switching (usually called something like `setTheme()`, `changeTheme()`, or `applyTheme()`) and add the trigger to the bottom of it:
-
-```javascript
-function changeTheme(newTheme) {
-    // ... your existing code that changes background colors/UI ...
-
-    // Add this line to update the cursor!
-    applyThemeCursor(newTheme);
-}
+</body>
+</html>
