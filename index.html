@@ -182,16 +182,6 @@
         animation: pet-roam 18s linear infinite; 
     }
     
-    @keyframes pet-walk-bob {
-        0%, 100% { transform: translateY(0) scaleY(1); }
-        25% { transform: translateY(-6px) scaleY(1.05) rotate(-3deg); }
-        50% { transform: translateY(2px) scaleY(0.95); }
-        75% { transform: translateY(-6px) scaleY(1.05) rotate(3deg); }
-    }
-    .animate-pet-walk-bob {
-        animation: pet-walk-bob 0.5s ease-in-out infinite;
-    }
-    
     .pixelated {
         image-rendering: pixelated;
         image-rendering: -moz-crisp-edges;
@@ -501,7 +491,7 @@
         <div id="sidebar-pet-enclosure" class="hidden" title="Your Desk Pet">
             <div id="pet-widget-container" class="fixed bottom-6 left-6 z-[100] flex flex-col items-center cursor-pointer hover:drop-shadow-[0_0_20px_rgba(255,255,255,0.6)] hover:scale-105 transition-transform" style="touch-action: none;">
                 <div id="pet-widget-mood" class="hidden text-[16px] mb-1 drop-shadow-md z-20 font-black pointer-events-none"></div>
-                <div class="relative animate-pet-walk-bob origin-bottom">
+                <div class="relative origin-bottom">
                     <img id="pet-widget-img" src="" class="h-16 w-auto object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] pixelated" draggable="false" />
                     <span id="pet-widget-acc" class="absolute -top-3 -right-2 text-xl drop-shadow-sm transform rotate-12 z-20 pointer-events-none"></span>
                 </div>
@@ -2385,6 +2375,37 @@
             const oldPhotoURL = currentPhotoURL;
             currentPhotoURL = myProfile.photoURL || firebaseUser.photoURL || 'https://via.placeholder.com/150';
             document.getElementById('sidebar-user-img').src = currentPhotoURL;
+
+            // --- VIRTUAL PET INITIALIZATION ---
+            // Auto-grant default pet if missing
+            if (!myProfile.pet) {
+                myProfile.pet = {
+                    type: 'pikachu',
+                    name: 'Pikachu',
+                    hunger: 100,
+                    happiness: 100,
+                    lastUpdate: Date.now()
+                };
+                updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                    pet: myProfile.pet
+                }).catch(e => console.log('Auto-adopt error', e));
+            }
+
+            // Always render the pet widget immediately on load
+            const petTypeData = PET_TYPES.find(p => p.id === myProfile.pet.type) || PET_TYPES[3]; // Fallback to Pikachu
+            let activeAcc = '';
+            if (myProfile.activeCosmetics && myProfile.activeCosmetics.pet_acc) {
+                const accItem = SHOP_ITEMS.find(i => i.id === myProfile.activeCosmetics.pet_acc);
+                if (accItem) activeAcc = accItem.class;
+            }
+            const hoursPassed = (Date.now() - (myProfile.pet.lastUpdate || Date.now())) / (1000 * 60 * 60);
+            const cHunger = Math.max(0, Math.min(100, myProfile.pet.hunger - (hoursPassed * 4)));
+            const cHappiness = Math.max(0, Math.min(100, myProfile.pet.happiness - (hoursPassed * 2)));
+            
+            if (window.updateSidebarPetWidget) {
+                window.updateSidebarPetWidget(myProfile, petTypeData.img, activeAcc, cHunger, cHappiness);
+            }
+            // ----------------------------------
 
             if (oldPhotoURL !== currentPhotoURL && appSettings.avatarTheme) {
                 if (window.applyAvatarTheme) window.applyAvatarTheme();
@@ -6143,36 +6164,9 @@
 
         let pet = myProfile.pet;
 
+        // Fallback just in case they haven't synced the auto-adopt yet
         if (!pet) {
-            container.innerHTML = `
-                <div class="text-center py-6">
-                    <div class="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-                        <i data-lucide="egg" class="w-10 h-10 text-emerald-400"></i>
-                    </div>
-                    <h3 class="text-white text-xl font-bold mb-2">Adopt a Desk Pet!</h3>
-                    <p class="text-textMuted text-sm mb-4 max-w-[280px] mx-auto leading-relaxed">Save up <span class="text-yellow-400 font-bold">5,000 XP</span> to adopt your own virtual companion! (Or wait for an Admin to secretly gift you one 🎁)</p>
-                    
-                    <div class="bg-black/40 border border-yellow-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-inner mb-6">
-                       <i data-lucide="star" class="w-4 h-4 text-yellow-400"></i>
-                       <span class="text-yellow-400 font-bold text-sm tracking-widest">${myProfile.xp || 0} XP</span>
-                    </div>
-
-                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
-                        ${PET_TYPES.map(p => {
-                            const canAfford = (myProfile.xp || 0) >= 5000;
-                            return `
-                            <button onclick="adoptPet('${p.id}')" class="bg-black/40 hover:bg-white/10 border border-white/5 ${canAfford ? 'hover:border-emerald-500/50 cursor-pointer active:scale-95' : 'opacity-50 cursor-not-allowed'} p-3 rounded-2xl flex flex-col items-center justify-center transition-all group" ${canAfford ? '' : 'disabled'}>
-                                <span class="mb-2 h-10 flex items-end justify-center"><img src="${p.img}" class="h-10 w-auto object-contain pixelated ${canAfford ? 'group-hover:scale-110' : ''} transition-transform" /></span>
-                                <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest truncate w-full text-center mb-1">${p.name}</span>
-                                <span class="text-[9px] font-bold ${canAfford ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20'} px-1.5 py-0.5 rounded border">5000 XP</span>
-                            </button>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            `;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-            return;
+            pet = { type: 'pikachu', name: 'Pikachu', hunger: 100, happiness: 100, lastUpdate: Date.now() };
         }
 
         // Calculate decayed stats visually
@@ -6180,7 +6174,7 @@
         let currentHunger = Math.max(0, Math.min(100, pet.hunger - (hoursPassed * 4))); // Loses 4 hunger per hour
         let currentHappiness = Math.max(0, Math.min(100, pet.happiness - (hoursPassed * 2))); // Loses 2 happiness per hour
 
-        const petTypeData = PET_TYPES.find(p => p.id === pet.type) || PET_TYPES[0];
+        const petTypeData = PET_TYPES.find(p => p.id === pet.type) || PET_TYPES[3];
         
         let activeAcc = '';
         if (myProfile.activeCosmetics && myProfile.activeCosmetics.pet_acc) {
@@ -6206,7 +6200,7 @@
                 <h3 class="text-2xl font-bold text-white mb-1 tracking-tight">${pet.name || petTypeData.name}</h3>
                 <p class="text-xs font-bold uppercase tracking-widest ${moodColor} mb-8 bg-black/40 px-3 py-1 rounded-lg border border-white/5 shadow-sm">Status: ${moodText}</p>
 
-                <div class="w-full space-y-4 mb-8 px-2">
+                <div class="w-full space-y-4 mb-6 px-2">
                     <div>
                         <div class="flex justify-between text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider ml-1">
                             <span>Hunger</span>
@@ -6227,13 +6221,47 @@
                     </div>
                 </div>
 
-                <div class="flex gap-3 w-full">
+                <div class="flex gap-3 w-full mb-4">
                     <button onclick="interactPet('feed')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
                         <i data-lucide="beef" class="w-4 h-4"></i> Feed
                     </button>
                     <button onclick="interactPet('play')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
                         <i data-lucide="gamepad-2" class="w-4 h-4"></i> Play
                     </button>
+                </div>
+
+                <div class="w-full border-t border-white/5 pt-6 mt-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-sm font-bold text-white">Change Pet</h4>
+                        <div class="bg-black/40 border border-yellow-500/30 px-2 py-1 rounded-lg flex items-center gap-1 shadow-inner">
+                            <i data-lucide="star" class="w-3 h-3 text-yellow-400"></i>
+                            <span class="text-yellow-400 font-bold text-xs">${myProfile.xp || 0} XP</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
+                        ${PET_TYPES.map(p => {
+                            const isCurrent = p.id === pet.type;
+                            const canAfford = (myProfile.xp || 0) >= 5000;
+                            
+                            if (isCurrent) {
+                                return `
+                                <button class="bg-primary/20 border border-primary/50 p-3 rounded-2xl flex flex-col items-center justify-center cursor-default">
+                                    <span class="mb-2 h-10 flex items-end justify-center"><img src="${p.img}" class="h-10 w-auto object-contain pixelated" /></span>
+                                    <span class="text-[10px] font-bold text-primary uppercase tracking-widest truncate w-full text-center mb-1">${p.name}</span>
+                                    <span class="text-[9px] font-bold text-primary bg-primary/20 px-1.5 py-0.5 rounded border border-primary/30">Equipped</span>
+                                </button>
+                                `;
+                            }
+
+                            return `
+                            <button onclick="adoptPet('${p.id}')" class="bg-black/40 hover:bg-white/10 border border-white/5 ${canAfford ? 'hover:border-emerald-500/50 cursor-pointer active:scale-95' : 'opacity-50 cursor-not-allowed'} p-3 rounded-2xl flex flex-col items-center justify-center transition-all group" ${canAfford ? '' : 'disabled'}>
+                                <span class="mb-2 h-10 flex items-end justify-center"><img src="${p.img}" class="h-10 w-auto object-contain pixelated ${canAfford ? 'group-hover:scale-110' : ''} transition-transform" /></span>
+                                <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest truncate w-full text-center mb-1">${p.name}</span>
+                                <span class="text-[9px] font-bold ${canAfford ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20'} px-1.5 py-0.5 rounded border">5000 XP</span>
+                            </button>
+                            `;
+                        }).join('')}
+                    </div>
                 </div>
             </div>
         `;
