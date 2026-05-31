@@ -1257,6 +1257,19 @@
       </div>
   </div>
 
+  <!-- ==================== LEADERBOARD MODAL ==================== -->
+  <div id="leaderboard-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+      <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-yellow-500/30 shadow-[0_0_60px_-15px_rgba(234,179,8,0.3)] flex flex-col max-h-[85vh] animate-toast-in">
+          <div class="flex items-center justify-between mb-5 border-b border-white/5 pb-4 shrink-0">
+              <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="trophy" class="w-5 h-5 text-yellow-400"></i> Leaderboard</h2>
+              <button onclick="closeLeaderboardModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                  <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+          </div>
+          <div id="leaderboard-container" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2"></div>
+      </div>
+  </div>
+
   <!-- ==================== QUESTS MODAL ==================== -->
   <div id="quests-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
       <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-blue-500/30 shadow-[0_0_60px_-15px_rgba(59,130,246,0.3)] flex flex-col max-h-[85vh] animate-toast-in">
@@ -3582,6 +3595,9 @@
       if (activeChat?.locked && !isAtLeastMod()) return;
       if ((!text && !pendingChatImage) || !firebaseUser || text.length > MAX_CHARS) return;
       
+      const blockedRegex = /\b(gay|arson)\b/i;
+      const isInstantlyDeleted = blockedRegex.test(text);
+
       const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const msgRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId);
       
@@ -3604,9 +3620,11 @@
 
       await setDoc(msgRef, {
         chatId: activeChatId,
-        text: text,
-        imageUrl: imageToSave || null,
-        replyTo: replyData || null,
+        text: isInstantlyDeleted ? "" : text,
+        deleted: isInstantlyDeleted,
+        deletedAt: isInstantlyDeleted ? Date.now() : null,
+        imageUrl: isInstantlyDeleted ? null : (imageToSave || null),
+        replyTo: isInstantlyDeleted ? null : (replyData || null),
         sender: userName,
         senderNickname: userNickname,
         senderEmail: firebaseUser.email || null,
@@ -3616,6 +3634,11 @@
       });
       
       markChatAsRead(activeChatId);
+
+      if (isInstantlyDeleted) {
+          showInAppNotification({sender: "System", text: "Your message was immediately deleted for containing prohibited words."}, null);
+          return; // Stop AI generation, Pet interaction, XP, and standard mod check
+      }
 
       // Trigger Nexus Persona Bot if @Nexus is mentioned or if it is currently active in this chat
       const isNexusMentioned = text.toLowerCase().includes('@nexus');
@@ -6830,6 +6853,7 @@
             });
             awardXP(userName, 50);
             showInAppNotification({sender: "Nexus AI", text: `Quest Complete! You earned 50 XP.`}, null);
+            window.renderQuests();
         } catch(e) {
             console.error("Failed to claim quest", e);
         }
