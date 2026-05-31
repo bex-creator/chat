@@ -174,8 +174,8 @@
     /* Pet Animations */
     @keyframes pet-roam {
         0%, 5% { transform: translateX(0) scaleX(-1); }
-        45%, 50% { transform: translateX(190px) scaleX(-1); }
-        51%, 55% { transform: translateX(190px) scaleX(1); }
+        45%, 50% { transform: translateX(160px) scaleX(-1); }
+        51%, 55% { transform: translateX(160px) scaleX(1); }
         95%, 100% { transform: translateX(0) scaleX(1); }
     }
     .animate-pet-roam { 
@@ -487,12 +487,12 @@
       <div class="p-3 border-t border-white/5 mt-auto bg-black/10 flex flex-col gap-3">
         
         <!-- Roaming Pet Area -->
-        <div id="sidebar-pet-enclosure" class="hidden w-full h-12 relative border-b border-white/5 pb-2" title="Your Desk Pet">
-            <div class="absolute bottom-0 left-2 animate-pet-roam z-10 flex flex-col items-center cursor-pointer hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] transition-all" onclick="openPetModal()">
-                <div id="pet-widget-mood" class="hidden text-[11px] mb-0.5 drop-shadow-md z-20"></div>
+        <div id="sidebar-pet-enclosure" class="hidden w-full h-24 relative border-b border-white/5 pb-2 mt-1" title="Your Desk Pet">
+            <div class="absolute bottom-1 left-2 animate-pet-roam z-10 flex flex-col items-center cursor-pointer hover:drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] transition-all" onclick="openPetModal()">
+                <div id="pet-widget-mood" class="hidden text-sm mb-1 drop-shadow-md z-20 font-black"></div>
                 <div class="relative">
-                    <img id="pet-widget-img" src="" class="h-9 w-auto object-contain drop-shadow-lg pixelated" />
-                    <span id="pet-widget-acc" class="absolute -top-3 -right-2 text-sm drop-shadow-sm transform rotate-12 scale-75 z-20"></span>
+                    <img id="pet-widget-img" src="" class="h-16 w-auto object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] pixelated" />
+                    <span id="pet-widget-acc" class="absolute -top-3 -right-2 text-xl drop-shadow-sm transform rotate-12 z-20"></span>
                 </div>
             </div>
         </div>
