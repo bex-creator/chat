@@ -6056,11 +6056,29 @@
         if (!pet) {
             container.innerHTML = `
                 <div class="text-center py-6">
-                    <div class="w-20 h-20 bg-slate-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-500/30 shadow-[0_0_30px_rgba(100,116,139,0.2)]">
-                        <i data-lucide="egg" class="w-10 h-10 text-slate-400"></i>
+                    <div class="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+                        <i data-lucide="egg" class="w-10 h-10 text-emerald-400"></i>
                     </div>
-                    <h3 class="text-white text-xl font-bold mb-2">No Pet Yet...</h3>
-                    <p class="text-textMuted text-sm mb-6 max-w-[250px] mx-auto leading-relaxed">Rumor has it that the mysterious Admins sometimes gift rare desk pets to worthy chatters. Keep chatting and you might find one on your sidebar!</p>
+                    <h3 class="text-white text-xl font-bold mb-2">Adopt a Desk Pet!</h3>
+                    <p class="text-textMuted text-sm mb-4 max-w-[280px] mx-auto leading-relaxed">Save up <span class="text-yellow-400 font-bold">5,000 XP</span> to adopt your own virtual companion! (Or wait for an Admin to secretly gift you one 🎁)</p>
+                    
+                    <div class="bg-black/40 border border-yellow-500/30 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-inner mb-6">
+                       <i data-lucide="star" class="w-4 h-4 text-yellow-400"></i>
+                       <span class="text-yellow-400 font-bold text-sm tracking-widest">${myProfile.xp || 0} XP</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                        ${PET_TYPES.map(p => {
+                            const canAfford = (myProfile.xp || 0) >= 5000;
+                            return `
+                            <button onclick="adoptPet('${p.id}')" class="bg-black/40 hover:bg-white/10 border border-white/5 ${canAfford ? 'hover:border-emerald-500/50 cursor-pointer active:scale-95' : 'opacity-50 cursor-not-allowed'} p-3 rounded-2xl flex flex-col items-center justify-center transition-all group" ${canAfford ? '' : 'disabled'}>
+                                <span class="mb-2 h-10 flex items-end justify-center"><img src="${p.img}" class="h-10 w-auto object-contain pixelated ${canAfford ? 'group-hover:scale-110' : ''} transition-transform" /></span>
+                                <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest truncate w-full text-center mb-1">${p.name}</span>
+                                <span class="text-[9px] font-bold ${canAfford ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20'} px-1.5 py-0.5 rounded border">5000 XP</span>
+                            </button>
+                            `;
+                        }).join('')}
+                    </div>
                 </div>
             `;
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -6161,6 +6179,33 @@
             moodEl.textContent = '✨';
             moodEl.classList.remove('hidden');
         }
+    }
+
+    window.adoptPet = async function(typeId) {
+        if (!firebaseUser) return;
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        
+        if (!myProfile || (myProfile.xp || 0) < 5000) {
+            alert("You don't have enough XP to adopt a pet!");
+            return;
+        }
+
+        const newPet = {
+            type: typeId,
+            name: '',
+            hunger: 100,
+            happiness: 100,
+            lastUpdate: Date.now()
+        };
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                pet: newPet,
+                xp: myProfile.xp - 5000
+            });
+            window.renderPetUI();
+            showInAppNotification({sender: "System", text: `You adopted a new pet!`}, null);
+        } catch(e) { console.error("Error adopting pet", e); }
     }
 
     window.interactPet = async function(action) {
