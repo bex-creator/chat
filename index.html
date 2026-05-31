@@ -497,13 +497,13 @@
 
       <div class="p-3 border-t border-white/5 mt-auto bg-black/10 flex flex-col gap-3">
         
-        <!-- Roaming Pet Area -->
-        <div id="sidebar-pet-enclosure" class="hidden w-full h-24 relative border-b border-white/5 pb-2 mt-1" title="Your Desk Pet">
-            <div class="absolute bottom-1 left-2 animate-pet-roam z-10 flex flex-col items-center cursor-pointer hover:drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] transition-all" onclick="openPetModal()">
-                <div id="pet-widget-mood" class="hidden text-sm mb-1 drop-shadow-md z-20 font-black"></div>
+        <!-- Draggable Floating Pet -->
+        <div id="sidebar-pet-enclosure" class="hidden" title="Your Desk Pet">
+            <div id="pet-widget-container" class="fixed bottom-6 left-6 z-[100] flex flex-col items-center cursor-pointer hover:drop-shadow-[0_0_20px_rgba(255,255,255,0.6)] hover:scale-105 transition-transform" style="touch-action: none;">
+                <div id="pet-widget-mood" class="hidden text-[16px] mb-1 drop-shadow-md z-20 font-black pointer-events-none"></div>
                 <div class="relative animate-pet-walk-bob origin-bottom">
-                    <img id="pet-widget-img" src="" class="h-16 w-auto object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] pixelated" />
-                    <span id="pet-widget-acc" class="absolute -top-3 -right-2 text-xl drop-shadow-sm transform rotate-12 z-20"></span>
+                    <img id="pet-widget-img" src="" class="h-16 w-auto object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] pixelated" draggable="false" />
+                    <span id="pet-widget-acc" class="absolute -top-3 -right-2 text-xl drop-shadow-sm transform rotate-12 z-20 pointer-events-none"></span>
                 </div>
             </div>
         </div>
@@ -6037,13 +6037,103 @@
     }
 
     // --- VIRTUAL PET LOGIC ---
-    document.getElementById('btn-open-pet').addEventListener('click', () => {
+    window.openPetModal = function() {
         window.renderPetUI();
         document.getElementById('pet-modal').classList.remove('hidden');
+    };
+
+    document.getElementById('btn-open-pet').addEventListener('click', () => {
+        window.openPetModal();
     });
 
     window.closePetModal = function() {
         document.getElementById('pet-modal').classList.add('hidden');
+    }
+
+    // --- PET DRAGGING LOGIC ---
+    const petWidget = document.getElementById('pet-widget-container');
+    let isDraggingPet = false;
+    let petDragStartX, petDragStartY;
+    let petStartLeft, petStartTop;
+
+    // Load saved position
+    const savedPetX = localStorage.getItem('chat_pet_x');
+    const savedPetY = localStorage.getItem('chat_pet_y');
+    if (savedPetX && savedPetY && petWidget) {
+        petWidget.style.left = savedPetX;
+        petWidget.style.top = savedPetY;
+        petWidget.style.bottom = 'auto'; // Disable default bottom
+    }
+
+    function startPetDrag(e) {
+        if (!petWidget || document.getElementById('sidebar-pet-enclosure').classList.contains('hidden')) return;
+        isDraggingPet = true;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        petDragStartX = clientX;
+        petDragStartY = clientY;
+        
+        const rect = petWidget.getBoundingClientRect();
+        petStartLeft = rect.left;
+        petStartTop = rect.top;
+        
+        petWidget.style.transition = 'none';
+        petWidget.style.cursor = 'grabbing';
+    }
+
+    function movePetDrag(e) {
+        if (!isDraggingPet) return;
+        e.preventDefault(); 
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const dx = clientX - petDragStartX;
+        const dy = clientY - petDragStartY;
+        
+        let newX = petStartLeft + dx;
+        let newY = petStartTop + dy;
+        
+        // Keep within screen bounds
+        const rect = petWidget.getBoundingClientRect();
+        newX = Math.max(0, Math.min(newX, window.innerWidth - rect.width));
+        newY = Math.max(0, Math.min(newY, window.innerHeight - rect.height));
+        
+        petWidget.style.left = `${newX}px`;
+        petWidget.style.top = `${newY}px`;
+        petWidget.style.bottom = 'auto';
+        petWidget.style.right = 'auto';
+    }
+
+    function stopPetDrag(e) {
+        if (!isDraggingPet) return;
+        isDraggingPet = false;
+        petWidget.style.transition = '';
+        petWidget.style.cursor = 'pointer';
+        
+        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+        
+        const dx = clientX - petDragStartX;
+        const dy = clientY - petDragStartY;
+        
+        // If it was a short click without moving much, open the modal
+        if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+            window.openPetModal();
+        } else {
+            // Save position for next time
+            localStorage.setItem('chat_pet_x', petWidget.style.left);
+            localStorage.setItem('chat_pet_y', petWidget.style.top);
+        }
+    }
+
+    if (petWidget) {
+        petWidget.addEventListener('mousedown', startPetDrag);
+        window.addEventListener('mousemove', movePetDrag, { passive: false });
+        window.addEventListener('mouseup', stopPetDrag);
+        
+        petWidget.addEventListener('touchstart', startPetDrag, { passive: false });
+        window.addEventListener('touchmove', movePetDrag, { passive: false });
+        window.addEventListener('touchend', stopPetDrag);
     }
 
     window.renderPetUI = function() {
