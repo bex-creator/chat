@@ -1298,6 +1298,23 @@
     </div>
   </div>
 
+  <!-- VIBE CHECK MODAL -->
+  <div id="vibe-check-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-purple-500/30 shadow-[0_0_60px_-15px_rgba(168,85,247,0.2)] flex flex-col items-center text-center animate-toast-in">
+        <div class="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(168,85,247,0.2)]">
+            <i data-lucide="flame" class="w-8 h-8 text-purple-400"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-1 tracking-tight">AI Vibe Check</h2>
+        <h3 id="vibe-check-target" class="text-[11px] font-bold text-purple-400 mb-5 uppercase tracking-widest bg-purple-500/10 px-3 py-1 rounded-lg border border-purple-500/20"></h3>
+        
+        <div id="vibe-check-content" class="text-[14px] text-slate-200 leading-relaxed bg-black/40 border border-white/5 p-5 rounded-2xl w-full mb-6 min-h-[100px] flex items-center justify-center shadow-inner italic">
+            <!-- Loading or Content injected here -->
+        </div>
+        
+        <button onclick="closeVibeCheckModal()" class="w-full py-3.5 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold transition-all border border-white/10 hover:border-white/20 active:scale-95">Close</button>
+    </div>
+  </div>
+
   <!-- ==================== SCRIPT ==================== -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -5763,6 +5780,42 @@
         document.getElementById('leaderboard-modal').classList.add('hidden');
     }
 
+    window.openVibeCheckModal = function() {
+        document.getElementById('vibe-check-modal').classList.remove('hidden');
+    }
+
+    window.closeVibeCheckModal = function() {
+        document.getElementById('vibe-check-modal').classList.add('hidden');
+    }
+
+    window.vibeCheckUser = async function(targetUsername) {
+        const contentEl = document.getElementById('vibe-check-content');
+        document.getElementById('vibe-check-target').textContent = `@${targetUsername}`;
+        contentEl.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin text-purple-400"></i><span class="ml-2 text-textMuted font-medium not-italic">Analyzing vibes...</span>';
+        
+        window.openVibeCheckModal();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Fetch recent messages for context
+        const userMsgs = allMessages.filter(m => m.sender.toLowerCase() === targetUsername.toLowerCase() && m.text && !m.isSystem && !m.deleted).slice(-30);
+
+        if (userMsgs.length < 3) {
+            contentEl.innerHTML = `<span class="text-slate-300 not-italic text-sm">Nexus AI says: "I can't read their vibe yet! @${targetUsername} is too quiet and mysterious. Tell them to chat more!"</span>`;
+            return;
+        }
+
+        const context = userMsgs.map(m => m.text).join('\n');
+        const prompt = `You are Nexus AI. The following are the most recent chat messages from the user @${targetUsername}. Give them a funny, slightly sassy, but good-natured 'Vibe Check' or playfully roast them based entirely on what they talk about. Keep it short (2-3 sentences max). Address them in the third person or directly. Return ONLY the roast/vibe check text, no quotes.`;
+
+        try {
+            let vibeText = await callPollinationsAPI(`Messages from @${targetUsername}:\n${context}`, prompt);
+            vibeText = vibeText.replace(/^"|"$/g, '').trim();
+            contentEl.innerHTML = `<span class="text-slate-100 font-medium">"${vibeText}"</span>`;
+        } catch (e) {
+            contentEl.innerHTML = '<span class="text-red-400 not-italic">Failed to analyze vibes. Nexus AI might be sleeping.</span>';
+        }
+    }
+
     window.renderLeaderboard = function() {
         const container = document.getElementById('leaderboard-container');
         const sortedUsers = allAppUsers
@@ -5785,16 +5838,24 @@
             const nameColorStyle = u.nameColor && u.nameColor !== '#ffffff' ? `color: ${u.nameColor}; text-shadow: 0 0 10px ${u.nameColor}40;` : '';
 
             return `
-                <div class="flex items-center gap-3 p-3 bg-black/20 border border-white/5 rounded-2xl hover:bg-white/5 transition-colors">
+                <div class="flex items-center gap-3 p-3 bg-black/20 border border-white/5 rounded-2xl hover:bg-white/5 transition-colors group">
                     <div class="w-6 flex justify-center flex-shrink-0">${rankMedal}</div>
                     <img src="${photo}" class="w-10 h-10 rounded-full object-cover border border-white/10 bg-inputBg" />
                     <div class="flex-1 min-w-0">
                         <div class="font-bold text-white truncate" style="${nameColorStyle}">${u.nickname || u.username}</div>
-                        <div class="text-[11px] text-textMuted font-medium truncate">@${u.username}</div>
+                        <div class="text-[11px] text-textMuted font-medium truncate flex items-center gap-1.5">
+                            @${u.username}
+                            <span class="text-[9px] text-yellow-400 font-bold bg-yellow-500/10 border border-yellow-500/20 px-1 rounded">Lv.${level}</span>
+                        </div>
                     </div>
-                    <div class="flex flex-col items-end">
-                        <span class="text-yellow-400 font-black text-sm drop-shadow-sm">Lv.${level}</span>
-                        <span class="text-[10px] text-slate-400 font-medium">${u.xp || 0} XP</span>
+                    
+                    <div class="flex items-center gap-2">
+                        <div class="flex flex-col items-end mr-1">
+                            <span class="text-sm font-black text-slate-300 drop-shadow-sm">${u.xp || 0} XP</span>
+                        </div>
+                        <button onclick="vibeCheckUser('${u.username.replace(/'/g, "\\'")}')" class="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 p-2 rounded-xl transition-all shadow-sm" title="Vibe Check / Roast">
+                            <i data-lucide="flame" class="w-4 h-4 transform group-hover:scale-110 transition-transform"></i>
+                        </button>
                     </div>
                 </div>
             `;
