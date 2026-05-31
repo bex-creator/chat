@@ -171,6 +171,13 @@
     .cosmetic-bubble-hacker { border-color: #22c55e !important; box-shadow: 0 0 15px rgba(34,197,94,0.3), inset 0 0 10px rgba(34,197,94,0.1) !important; border-radius: 0 !important; }
     .cosmetic-bubble-void { border-color: #a855f7 !important; box-shadow: 0 0 20px rgba(168,85,247,0.4) !important; background: rgba(0,0,0,0.8) !important; }
     
+    /* Pet Animations */
+    @keyframes pet-idle {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-4px) scale(1.05); }
+    }
+    .animate-pet-idle { animation: pet-idle 3s ease-in-out infinite; }
+    
     /* Immersive Full UI Mode - Transparent Panels, Black Blur Buttons/Inputs */
     body.immersive-mode #chat-custom-bg-overlay {
         opacity: 0 !important;
@@ -470,7 +477,17 @@
 
       <div class="p-4 border-t border-white/5 mt-auto bg-black/10">
         <div class="flex items-center justify-between">
-          <div id="btn-edit-profile" class="flex items-center gap-3 cursor-pointer min-w-0 hover:bg-white/5 p-2.5 -ml-2 rounded-xl transition-all group border border-transparent hover:border-white/5" title="Edit Profile">
+          <div id="btn-edit-profile" class="flex items-center gap-3 cursor-pointer min-w-0 hover:bg-white/5 p-2.5 -ml-2 rounded-xl transition-all group border border-transparent hover:border-white/5 relative" title="Edit Profile">
+            
+            <!-- Virtual Pet Widget -->
+            <div id="sidebar-pet-widget" class="hidden absolute -top-5 left-8 z-20 transition-transform hover:-translate-y-1 drop-shadow-lg" onclick="event.stopPropagation(); openPetModal();" title="Your Desk Pet">
+                <div class="relative animate-pet-idle">
+                    <span id="pet-widget-emoji" class="text-2xl drop-shadow-md">🥚</span>
+                    <span id="pet-widget-acc" class="absolute -top-1 -right-2 text-sm drop-shadow-sm transform rotate-12 scale-75"></span>
+                    <div id="pet-widget-mood" class="hidden absolute -top-3 -left-3 bg-white/90 text-black text-[9px] rounded-full w-4 h-4 flex items-center justify-center shadow-sm border border-black/10 font-black"></div>
+                </div>
+            </div>
+
             <div id="sidebar-user-avatar-container" class="relative inline-block flex-shrink-0">
                <img id="sidebar-user-img" src="" alt="User" class="w-10 h-10 object-cover rounded-full border border-white/10 bg-inputBg" />
                <div id="sidebar-presence-dot" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-mainBg bg-emerald-500 hidden"></div>
@@ -486,6 +503,9 @@
             </div>
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
+            <button id="btn-open-pet" class="text-emerald-400 hover:text-emerald-300 transition-colors p-2.5 rounded-xl hover:bg-emerald-500/10" title="Desk Pet">
+              <i data-lucide="heart" class="w-[18px] h-[18px]"></i>
+            </button>
             <button id="btn-open-shop" class="text-pink-400 hover:text-pink-300 transition-colors p-2.5 rounded-xl hover:bg-pink-500/10" title="XP Shop">
               <i data-lucide="shopping-cart" class="w-[18px] h-[18px]"></i>
             </button>
@@ -1271,6 +1291,23 @@
     </div>
   </div>
 
+  <!-- PET MODAL -->
+  <div id="pet-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
+    <div class="w-full max-w-md p-6 rounded-[32px] bg-sidebarBg border border-emerald-500/30 shadow-[0_0_60px_-15px_rgba(16,185,129,0.2)] flex flex-col max-h-[85vh] animate-toast-in">
+        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i data-lucide="heart" class="w-6 h-6 text-emerald-400 fill-emerald-400/20"></i> Virtual Desk Pet
+            </h2>
+            <button onclick="closePetModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div id="pet-container" class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <!-- Pet UI injected here -->
+        </div>
+    </div>
+  </div>
+
   <!-- SHOP MODAL -->
   <div id="shop-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[95] flex items-center justify-center p-4">
     <div class="w-full max-w-2xl p-6 rounded-[32px] bg-sidebarBg border border-pink-500/30 shadow-[0_0_60px_-15px_rgba(236,72,153,0.2)] flex flex-col max-h-[85vh]">
@@ -1293,7 +1330,10 @@
             <div id="shop-container-names" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6"></div>
             
             <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Chat Bubbles</h3>
-            <div id="shop-container-bubbles" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2"></div>
+            <div id="shop-container-bubbles" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-6"></div>
+
+            <h3 class="text-[11px] font-bold text-textMuted uppercase tracking-widest mb-3 ml-1">Pet Accessories</h3>
+            <div id="shop-container-pets" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2"></div>
         </div>
     </div>
   </div>
@@ -1406,6 +1446,15 @@
     let activeGameData = null;
     let unsubActiveGame = null;
 
+    // Pet Configuration
+    const PET_TYPES = [
+        { id: 'cat', emoji: '🐱', name: 'Kitten' },
+        { id: 'dog', emoji: '🐶', name: 'Puppy' },
+        { id: 'robot', emoji: '🤖', name: 'Mini-Bot' },
+        { id: 'dragon', emoji: '🦖', name: 'Dino' },
+        { id: 'penguin', emoji: '🐧', name: 'Penguin' }
+    ];
+
     // Cosmetic Shop Configuration
     const SHOP_ITEMS = [
         { id: 'name_rainbow', name: 'Rainbow Name', type: 'name', cost: 500, class: 'cosmetic-name-rainbow', icon: 'palette' },
@@ -1413,7 +1462,10 @@
         { id: 'name_glitch', name: 'Glitch Hacker Name', type: 'name', cost: 1000, class: 'cosmetic-name-glitch', icon: 'terminal' },
         { id: 'bubble_neon', name: 'Neon Rose Border', type: 'bubble', cost: 400, class: 'cosmetic-bubble-neon', icon: 'box' },
         { id: 'bubble_hacker', name: 'Cyberpunk Outline', type: 'bubble', cost: 600, class: 'cosmetic-bubble-hacker', icon: 'cpu' },
-        { id: 'bubble_void', name: 'The Dark Void', type: 'bubble', cost: 1200, class: 'cosmetic-bubble-void', icon: 'moon' }
+        { id: 'bubble_void', name: 'The Dark Void', type: 'bubble', cost: 1200, class: 'cosmetic-bubble-void', icon: 'moon' },
+        { id: 'pet_sunglasses', name: 'Cool Shades', type: 'pet_acc', cost: 200, class: '😎', icon: 'glasses' },
+        { id: 'pet_crown', name: 'Royal Crown', type: 'pet_acc', cost: 600, class: '👑', icon: 'crown' },
+        { id: 'pet_wizard', name: 'Wizard Hat', type: 'pet_acc', cost: 400, class: '🧙‍♂️', icon: 'wand' }
     ];
 
     // Custom Games List
@@ -2388,6 +2440,9 @@
         }
         if (!document.getElementById('shop-modal').classList.contains('hidden')) {
           window.renderShop();
+        }
+        if (!document.getElementById('pet-modal').classList.contains('hidden')) {
+          window.renderPetUI();
         }
       });
     }
@@ -3417,6 +3472,11 @@
 
       if (shouldTriggerBot) {
           handleNexusBotResponse(activeChatId);
+      }
+
+      // Virtual Pet Happiness Hook
+      if (myProfile && myProfile.pet) {
+          window.interactPet('chat');
       }
 
       // Award XP for sending a message (max once every 10 seconds to prevent spam)
@@ -5882,6 +5942,201 @@
         document.getElementById('quests-modal').classList.add('hidden');
     }
 
+    // --- VIRTUAL PET LOGIC ---
+    document.getElementById('btn-open-pet').addEventListener('click', () => {
+        window.renderPetUI();
+        document.getElementById('pet-modal').classList.remove('hidden');
+    });
+
+    window.closePetModal = function() {
+        document.getElementById('pet-modal').classList.add('hidden');
+    }
+
+    window.renderPetUI = function() {
+        const container = document.getElementById('pet-container');
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (!myProfile) return;
+
+        let pet = myProfile.pet;
+
+        if (!pet) {
+            container.innerHTML = `
+                <div class="text-center py-6">
+                    <div class="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+                        <i data-lucide="egg" class="w-10 h-10 text-emerald-400"></i>
+                    </div>
+                    <h3 class="text-white text-xl font-bold mb-2">Adopt a Desk Pet!</h3>
+                    <p class="text-textMuted text-sm mb-6">Choose a virtual companion to live on your sidebar. Keep them fed and happy while you chat!</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        ${PET_TYPES.map(p => `
+                            <button onclick="adoptPet('${p.id}')" class="bg-black/40 hover:bg-white/10 border border-white/5 hover:border-emerald-500/50 p-4 rounded-2xl flex flex-col items-center justify-center transition-all group active:scale-95">
+                                <span class="text-4xl mb-2 group-hover:scale-110 transition-transform">${p.emoji}</span>
+                                <span class="text-[11px] font-bold text-slate-300 uppercase tracking-widest">${p.name}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
+        }
+
+        // Calculate decayed stats visually
+        const hoursPassed = (Date.now() - (pet.lastUpdate || Date.now())) / (1000 * 60 * 60);
+        let currentHunger = Math.max(0, Math.min(100, pet.hunger - (hoursPassed * 4))); // Loses 4 hunger per hour
+        let currentHappiness = Math.max(0, Math.min(100, pet.happiness - (hoursPassed * 2))); // Loses 2 happiness per hour
+
+        const petTypeData = PET_TYPES.find(p => p.id === pet.type) || PET_TYPES[0];
+        
+        let activeAcc = '';
+        if (myProfile.activeCosmetics && myProfile.activeCosmetics.pet_acc) {
+            const accItem = SHOP_ITEMS.find(i => i.id === myProfile.activeCosmetics.pet_acc);
+            if (accItem) activeAcc = accItem.class;
+        }
+
+        let moodText = "Happy";
+        let moodColor = "text-emerald-400";
+        if (currentHunger < 30 || currentHappiness < 30) { moodText = "Sad"; moodColor = "text-red-400"; }
+        else if (currentHunger < 60 || currentHappiness < 60) { moodText = "Okay"; moodColor = "text-yellow-400"; }
+
+        container.innerHTML = `
+            <div class="flex flex-col items-center p-4">
+                <div class="relative w-32 h-32 bg-black/30 border border-white/10 rounded-full flex items-center justify-center mb-6 shadow-inner overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-b from-transparent to-emerald-500/10 opacity-50"></div>
+                    <div class="relative animate-pet-idle z-10">
+                        <span class="text-6xl drop-shadow-xl">${petTypeData.emoji}</span>
+                        ${activeAcc ? `<span class="absolute -top-3 -right-3 text-4xl drop-shadow-md transform rotate-12">${activeAcc}</span>` : ''}
+                    </div>
+                </div>
+                
+                <h3 class="text-2xl font-bold text-white mb-1 tracking-tight">${pet.name || petTypeData.name}</h3>
+                <p class="text-xs font-bold uppercase tracking-widest ${moodColor} mb-8 bg-black/40 px-3 py-1 rounded-lg border border-white/5 shadow-sm">Status: ${moodText}</p>
+
+                <div class="w-full space-y-4 mb-8 px-2">
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider ml-1">
+                            <span>Hunger</span>
+                            <span>${Math.round(currentHunger)}%</span>
+                        </div>
+                        <div class="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/5">
+                            <div class="h-full ${currentHunger > 50 ? 'bg-emerald-500' : (currentHunger > 25 ? 'bg-yellow-500' : 'bg-red-500')} transition-all duration-500 rounded-full" style="width: ${currentHunger}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider ml-1">
+                            <span>Happiness</span>
+                            <span>${Math.round(currentHappiness)}%</span>
+                        </div>
+                        <div class="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/5">
+                            <div class="h-full ${currentHappiness > 50 ? 'bg-blue-500' : (currentHappiness > 25 ? 'bg-yellow-500' : 'bg-red-500')} transition-all duration-500 rounded-full" style="width: ${currentHappiness}%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 w-full">
+                    <button onclick="interactPet('feed')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <i data-lucide="beef" class="w-4 h-4"></i> Feed
+                    </button>
+                    <button onclick="interactPet('play')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <i data-lucide="gamepad-2" class="w-4 h-4"></i> Play
+                    </button>
+                </div>
+            </div>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Update sidebar widget visually
+        window.updateSidebarPetWidget(myProfile, petTypeData.emoji, activeAcc, currentHunger, currentHappiness);
+    }
+
+    window.updateSidebarPetWidget = function(profile, emoji, acc, hunger, happiness) {
+        const widget = document.getElementById('sidebar-pet-widget');
+        const emojiEl = document.getElementById('pet-widget-emoji');
+        const accEl = document.getElementById('pet-widget-acc');
+        const moodEl = document.getElementById('pet-widget-mood');
+
+        if (!profile.pet) {
+            widget.classList.add('hidden');
+            return;
+        }
+
+        widget.classList.remove('hidden');
+        emojiEl.textContent = emoji;
+        accEl.textContent = acc || '';
+
+        moodEl.classList.add('hidden');
+        if (hunger < 30) {
+            moodEl.textContent = '🍖';
+            moodEl.classList.remove('hidden');
+        } else if (happiness < 30) {
+            moodEl.textContent = '💔';
+            moodEl.classList.remove('hidden');
+        } else if (happiness > 90 && hunger > 90) {
+            moodEl.textContent = '✨';
+            moodEl.classList.remove('hidden');
+        }
+    }
+
+    window.adoptPet = async function(typeId) {
+        if (!firebaseUser) return;
+        const newPet = {
+            type: typeId,
+            name: '',
+            hunger: 100,
+            happiness: 100,
+            lastUpdate: Date.now()
+        };
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                pet: newPet
+            });
+            window.renderPetUI();
+        } catch(e) { console.error("Error adopting pet", e); }
+    }
+
+    window.interactPet = async function(action) {
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        if (!myProfile || !myProfile.pet) return;
+
+        let pet = { ...myProfile.pet };
+        
+        // Calculate true current stats before applying interaction
+        const hoursPassed = (Date.now() - (pet.lastUpdate || Date.now())) / (1000 * 60 * 60);
+        pet.hunger = Math.max(0, Math.min(100, pet.hunger - (hoursPassed * 4)));
+        pet.happiness = Math.max(0, Math.min(100, pet.happiness - (hoursPassed * 2)));
+
+        if (action === 'feed') {
+            pet.hunger = Math.min(100, pet.hunger + 30);
+            pet.happiness = Math.min(100, pet.happiness + 5);
+        } else if (action === 'play') {
+            pet.happiness = Math.min(100, pet.happiness + 30);
+            pet.hunger = Math.max(0, pet.hunger - 10); // Playing makes them hungry
+        } else if (action === 'chat') {
+            pet.happiness = Math.min(100, pet.happiness + 2); // Tiny passive boost
+        }
+
+        pet.lastUpdate = Date.now();
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                pet: pet
+            });
+            if (document.getElementById('pet-modal') && !document.getElementById('pet-modal').classList.contains('hidden')) {
+                 window.renderPetUI();
+            } else {
+                 // Silent update for background chat interactions
+                 const petTypeData = PET_TYPES.find(p => p.id === pet.type) || PET_TYPES[0];
+                 let activeAcc = '';
+                 if (myProfile.activeCosmetics && myProfile.activeCosmetics.pet_acc) {
+                     const accItem = SHOP_ITEMS.find(i => i.id === myProfile.activeCosmetics.pet_acc);
+                     if (accItem) activeAcc = accItem.class;
+                 }
+                 window.updateSidebarPetWidget(myProfile, petTypeData.emoji, activeAcc, pet.hunger, pet.happiness);
+            }
+        } catch(e) { console.error("Error interacting with pet", e); }
+    }
+
     // --- XP SHOP LOGIC ---
     document.getElementById('btn-open-shop').addEventListener('click', () => {
         window.renderShop();
@@ -5928,7 +6183,7 @@
                         </div>
                         <div class="flex flex-col min-w-0">
                             <span class="font-bold text-sm text-slate-200 truncate ${item.type === 'name' ? item.class : ''}">${item.name}</span>
-                            <span class="text-[10px] text-textMuted uppercase tracking-widest font-semibold">${item.type}</span>
+                            <span class="text-[10px] text-textMuted uppercase tracking-widest font-semibold">${item.type === 'pet_acc' ? 'Pet Accessory' : item.type}</span>
                         </div>
                     </div>
                     <div class="mt-auto relative z-10 pt-1">
@@ -5940,9 +6195,11 @@
 
         const namesHtml = SHOP_ITEMS.filter(i => i.type === 'name').map(renderItem).join('');
         const bubblesHtml = SHOP_ITEMS.filter(i => i.type === 'bubble').map(renderItem).join('');
+        const petsHtml = SHOP_ITEMS.filter(i => i.type === 'pet_acc').map(renderItem).join('');
 
         document.getElementById('shop-container-names').innerHTML = namesHtml;
         document.getElementById('shop-container-bubbles').innerHTML = bubblesHtml;
+        document.getElementById('shop-container-pets').innerHTML = petsHtml;
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
@@ -5986,6 +6243,8 @@
             await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
                 activeCosmetics: active
             });
+            // Re-render pet if accessory changed
+            if (type === 'pet_acc') window.renderPetUI();
         } catch(e) {
             console.error("Toggle failed", e);
         }
