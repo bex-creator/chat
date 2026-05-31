@@ -179,8 +179,19 @@
         95%, 100% { transform: translateX(0) scaleX(1); }
     }
     .animate-pet-roam { 
-        animation: pet-roam 18s ease-in-out infinite; 
+        animation: pet-roam 18s linear infinite; 
     }
+    
+    @keyframes pet-walk-bob {
+        0%, 100% { transform: translateY(0) scaleY(1); }
+        25% { transform: translateY(-6px) scaleY(1.05) rotate(-3deg); }
+        50% { transform: translateY(2px) scaleY(0.95); }
+        75% { transform: translateY(-6px) scaleY(1.05) rotate(3deg); }
+    }
+    .animate-pet-walk-bob {
+        animation: pet-walk-bob 0.5s ease-in-out infinite;
+    }
+    
     .pixelated {
         image-rendering: pixelated;
         image-rendering: -moz-crisp-edges;
@@ -490,7 +501,7 @@
         <div id="sidebar-pet-enclosure" class="hidden w-full h-24 relative border-b border-white/5 pb-2 mt-1" title="Your Desk Pet">
             <div class="absolute bottom-1 left-2 animate-pet-roam z-10 flex flex-col items-center cursor-pointer hover:drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] transition-all" onclick="openPetModal()">
                 <div id="pet-widget-mood" class="hidden text-sm mb-1 drop-shadow-md z-20 font-black"></div>
-                <div class="relative">
+                <div class="relative animate-pet-walk-bob origin-bottom">
                     <img id="pet-widget-img" src="" class="h-16 w-auto object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] pixelated" />
                     <span id="pet-widget-acc" class="absolute -top-3 -right-2 text-xl drop-shadow-sm transform rotate-12 z-20"></span>
                 </div>
@@ -1145,6 +1156,23 @@
     </div>
   </div>
 
+  <!-- ==================== GIFT PET MODAL ==================== -->
+  <div id="gift-pet-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[80] flex items-center justify-center p-4">
+    <div class="w-full max-w-md p-6 rounded-3xl bg-sidebarBg border border-emerald-500/30 shadow-[0_0_50px_-12px_rgba(16,185,129,0.5)] flex flex-col">
+      <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-4 shrink-0">
+          <h2 class="text-xl font-bold text-white tracking-tight">Gift Pet to: <span id="gift-pet-username-display" class="text-emerald-400"></span></h2>
+          <button onclick="closeGiftPetModal()" class="text-textMuted hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+              <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+      </div>
+      <p class="text-xs text-textMuted mb-4">Select a rare pet to secretly drop into this user's sidebar!</p>
+      <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2" id="gift-pet-grid">
+         <!-- Injected via JS -->
+      </div>
+      <input type="hidden" id="gift-pet-target-userid" />
+    </div>
+  </div>
+
   <!-- ==================== SUSPEND MODAL ==================== -->
   <div id="suspend-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[80] flex items-center justify-center p-4">
     <div class="w-full max-w-md p-6 rounded-3xl bg-sidebarBg border border-white/10 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] flex flex-col">
@@ -1463,11 +1491,23 @@
 
     // Pet Configuration
     const PET_TYPES = [
-        { id: 'cat', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/300.gif', name: 'Kitten' },
-        { id: 'dog', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/506.gif', name: 'Puppy' },
-        { id: 'robot', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/374.gif', name: 'Mini-Bot' },
-        { id: 'dragon', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/4.gif', name: 'Dino' },
-        { id: 'penguin', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/393.gif', name: 'Penguin' }
+        { id: 'bulbasaur', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/1.gif', name: 'Bulbasaur' },
+        { id: 'dragon', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/4.gif', name: 'Charmander' },
+        { id: 'squirtle', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/7.gif', name: 'Squirtle' },
+        { id: 'pikachu', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/25.gif', name: 'Pikachu' },
+        { id: 'jigglypuff', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/39.gif', name: 'Jigglypuff' },
+        { id: 'gengar', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/94.gif', name: 'Gengar' },
+        { id: 'eevee', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/133.gif', name: 'Eevee' },
+        { id: 'snorlax', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/143.gif', name: 'Snorlax' },
+        { id: 'mew', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/151.gif', name: 'Mew' },
+        { id: 'togepi', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/175.gif', name: 'Togepi' },
+        { id: 'umbreon', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/197.gif', name: 'Umbreon' },
+        { id: 'mudkip', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/258.gif', name: 'Mudkip' },
+        { id: 'cat', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/300.gif', name: 'Skitty' },
+        { id: 'robot', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/374.gif', name: 'Beldum' },
+        { id: 'penguin', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/393.gif', name: 'Piplup' },
+        { id: 'lucario', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/448.gif', name: 'Lucario' },
+        { id: 'dog', img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/506.gif', name: 'Lillipup' }
     ];
 
     // Cosmetic Shop Configuration
@@ -5496,6 +5536,48 @@
       }
     });
 
+    window.openGiftPetModal = function(userId, targetName) {
+      if (!isAdmin()) return;
+      document.getElementById('gift-pet-target-userid').value = userId;
+      document.getElementById('gift-pet-username-display').textContent = `@${targetName}`;
+      
+      const grid = document.getElementById('gift-pet-grid');
+      grid.innerHTML = PET_TYPES.map(p => `
+          <button onclick="adminGiftPet('${p.id}')" class="bg-black/40 hover:bg-white/10 border border-white/5 hover:border-emerald-500/50 p-3 rounded-2xl flex flex-col items-center justify-center transition-all group active:scale-95">
+              <span class="mb-2 h-10 flex items-end justify-center"><img src="${p.img}" class="h-10 w-auto object-contain pixelated group-hover:scale-110 transition-transform" /></span>
+              <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest truncate w-full text-center">${p.name}</span>
+          </button>
+      `).join('');
+      
+      document.getElementById('gift-pet-modal').classList.remove('hidden');
+    };
+    
+    window.closeGiftPetModal = function() {
+      document.getElementById('gift-pet-modal').classList.add('hidden');
+    };
+
+    window.adminGiftPet = async function(typeId) {
+        if (!isAdmin()) return;
+        const targetUserId = document.getElementById('gift-pet-target-userid').value;
+        if (!targetUserId) return;
+
+        const newPet = {
+            type: typeId,
+            name: '',
+            hunger: 100,
+            happiness: 100,
+            lastUpdate: Date.now()
+        };
+
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', targetUserId), {
+                pet: newPet
+            });
+            closeGiftPetModal();
+            showInAppNotification({sender: "System", text: `Secret pet successfully gifted to user!`}, null);
+        } catch(e) { console.error("Error gifting pet", e); }
+    }
+
     window.renderAdminUsers = function() {
       const isSuperAdmin = isAdmin();
       const list = document.getElementById('admin-users-list');
@@ -5542,6 +5624,7 @@
         const resetBtn = (!isMe && isSuperAdmin) ? `<button onclick="resetUserProfile('${u.id}', '${u.username.replace(/'/g, "\\'")}')" class="p-2 rounded-xl bg-orange-500/5 text-orange-400 hover:bg-orange-500/10 border border-orange-500/10 transition-colors shadow-sm" title="Reset Nickname/Avatar"><i data-lucide="user-x" class="w-4 h-4"></i></button>` : '';
         const hardDeleteBtn = (!isMe && isSuperAdmin) ? `<button onclick="deleteUserFromDatabase('${u.id.replace(/'/g, "\\'")}', '${u.username.replace(/'/g, "\\'")}')" class="p-2 rounded-xl bg-red-900/30 text-red-500 hover:bg-red-900/50 border border-red-700/30 transition-colors shadow-sm" title="Permanently Remove User From DB"><i data-lucide="user-minus" class="w-4 h-4"></i></button>` : '';
         const addXpBtn = isSuperAdmin ? `<button onclick="openAddXpModal('${u.id}', '${u.username.replace(/'/g, "\\'")}')" class="p-2 rounded-xl bg-yellow-500/5 text-yellow-400 hover:bg-yellow-500/10 border border-yellow-500/10 transition-colors shadow-sm" title="Add/Remove XP"><i data-lucide="star" class="w-4 h-4"></i></button>` : '';
+        const giftPetBtn = isSuperAdmin ? `<button onclick="openGiftPetModal('${u.id}', '${u.username.replace(/'/g, "\\'")}')" class="p-2 rounded-xl bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/10 transition-colors shadow-sm" title="Gift Desk Pet"><i data-lucide="gift" class="w-4 h-4"></i></button>` : '';
 
         const roleSelect = (isMe || !isSuperAdmin) ? '' : `
           <select onchange="assignUserRole('${u.id}', this.value)" class="bg-black/50 border border-white/10 text-[11px] font-bold rounded-lg px-2 py-1.5 outline-none text-slate-300 transition-colors hover:border-white/20" title="Assign Role">
@@ -5597,6 +5680,7 @@
               ${roleSelect}
               <div class="w-px h-6 bg-white/10 mx-1"></div>
               ${addXpBtn}
+              ${giftPetBtn}
               ${logsBtn}
               ${resetBtn}
               ${purgeBtn}
@@ -5972,19 +6056,11 @@
         if (!pet) {
             container.innerHTML = `
                 <div class="text-center py-6">
-                    <div class="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-                        <i data-lucide="egg" class="w-10 h-10 text-emerald-400"></i>
+                    <div class="w-20 h-20 bg-slate-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-500/30 shadow-[0_0_30px_rgba(100,116,139,0.2)]">
+                        <i data-lucide="egg" class="w-10 h-10 text-slate-400"></i>
                     </div>
-                    <h3 class="text-white text-xl font-bold mb-2">Adopt a Desk Pet!</h3>
-                    <p class="text-textMuted text-sm mb-6">Choose a virtual companion to live on your sidebar. Keep them fed and happy while you chat!</p>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        ${PET_TYPES.map(p => `
-                            <button onclick="adoptPet('${p.id}')" class="bg-black/40 hover:bg-white/10 border border-white/5 hover:border-emerald-500/50 p-4 rounded-2xl flex flex-col items-center justify-center transition-all group active:scale-95">
-                                <span class="mb-2 h-10 flex items-end justify-center"><img src="${p.img}" class="h-10 w-auto object-contain pixelated group-hover:scale-110 transition-transform" /></span>
-                                <span class="text-[11px] font-bold text-slate-300 uppercase tracking-widest">${p.name}</span>
-                            </button>
-                        `).join('')}
-                    </div>
+                    <h3 class="text-white text-xl font-bold mb-2">No Pet Yet...</h3>
+                    <p class="text-textMuted text-sm mb-6 max-w-[250px] mx-auto leading-relaxed">Rumor has it that the mysterious Admins sometimes gift rare desk pets to worthy chatters. Keep chatting and you might find one on your sidebar!</p>
                 </div>
             `;
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -6085,24 +6161,6 @@
             moodEl.textContent = '✨';
             moodEl.classList.remove('hidden');
         }
-    }
-
-    window.adoptPet = async function(typeId) {
-        if (!firebaseUser) return;
-        const newPet = {
-            type: typeId,
-            name: '',
-            hunger: 100,
-            happiness: 100,
-            lastUpdate: Date.now()
-        };
-
-        try {
-            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
-                pet: newPet
-            });
-            window.renderPetUI();
-        } catch(e) { console.error("Error adopting pet", e); }
     }
 
     window.interactPet = async function(action) {
