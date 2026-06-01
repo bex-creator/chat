@@ -44,10 +44,10 @@
     window.updateThemeCursor = function(color) {
         const hex = encodeURIComponent(color);
         // Sleek, proportionally accurate arrow cursor with soft shadow
-        const arrowSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M2 2l11 10.5h-6l-4 5.5z' fill='#000' opacity='0.3' transform='translate(1, 2)'/><path d='M2 2l11 10.5h-6l-4 5.5z' fill='${hex}' stroke='white' stroke-width='1.5' stroke-linejoin='round'/></svg>`;
+        const arrowSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M2 2l11 10.5h-6l-4 5.5z' fill='black' opacity='0.3' transform='translate(1, 2)'/><path d='M2 2l11 10.5h-6l-4 5.5z' fill='${hex}' stroke='white' stroke-width='1.5' stroke-linejoin='round'/></svg>`;
         
         // Polished standard pointer hand with shadow
-        const pointerSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M9.5 2c-.8 0-1.5.7-1.5 1.5v6h-1c-.8 0-1.5.7-1.5 1.5 0 .3.1.6.3.8l4 4.5c1 1.2 2.5 1.7 4 1.7h1c2.5 0 4.5-2 4.5-4.5V10c0-.8-.7-1.5-1.5-1.5h-1V7c0-.8-.7-1.5-1.5-1.5h-1V4c0-.8-.7-1.5-1.5-1.5h-1V3.5C11 2.7 10.3 2 9.5 2z' fill='#000' opacity='0.3' transform='translate(1, 2)'/><path d='M9.5 2c-.8 0-1.5.7-1.5 1.5v6h-1c-.8 0-1.5.7-1.5 1.5 0 .3.1.6.3.8l4 4.5c1 1.2 2.5 1.7 4 1.7h1c2.5 0 4.5-2 4.5-4.5V10c0-.8-.7-1.5-1.5-1.5h-1V7c0-.8-.7-1.5-1.5-1.5h-1V4c0-.8-.7-1.5-1.5-1.5h-1V3.5C11 2.7 10.3 2 9.5 2z' fill='${hex}' stroke='white' stroke-width='1.2' stroke-linejoin='round'/></svg>`;
+        const pointerSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M9.5 2c-.8 0-1.5.7-1.5 1.5v6h-1c-.8 0-1.5.7-1.5 1.5 0 .3.1.6.3.8l4 4.5c1 1.2 2.5 1.7 4 1.7h1c2.5 0 4.5-2 4.5-4.5V10c0-.8-.7-1.5-1.5-1.5h-1V7c0-.8-.7-1.5-1.5-1.5h-1V4c0-.8-.7-1.5-1.5-1.5h-1V3.5C11 2.7 10.3 2 9.5 2z' fill='black' opacity='0.3' transform='translate(1, 2)'/><path d='M9.5 2c-.8 0-1.5.7-1.5 1.5v6h-1c-.8 0-1.5.7-1.5 1.5 0 .3.1.6.3.8l4 4.5c1 1.2 2.5 1.7 4 1.7h1c2.5 0 4.5-2 4.5-4.5V10c0-.8-.7-1.5-1.5-1.5h-1V7c0-.8-.7-1.5-1.5-1.5h-1V4c0-.8-.7-1.5-1.5-1.5h-1V3.5C11 2.7 10.3 2 9.5 2z' fill='${hex}' stroke='white' stroke-width='1.2' stroke-linejoin='round'/></svg>`;
         
         document.documentElement.style.setProperty('--theme-cursor', `url("data:image/svg+xml;utf8,${arrowSvg}") 2 2, auto`);
         document.documentElement.style.setProperty('--theme-cursor-pointer', `url("data:image/svg+xml;utf8,${pointerSvg}") 9 2, pointer`);
