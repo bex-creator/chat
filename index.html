@@ -366,6 +366,13 @@
           minlength="6"
         />
         
+        <div class="flex items-start gap-2.5 mt-1 w-full text-left">
+          <input type="checkbox" id="auth-agree-tos" class="mt-0.5 w-4 h-4 shrink-0 rounded bg-inputBg border-white/10 text-primary cursor-pointer focus:ring-primary/50 focus:ring-offset-0" required>
+          <label for="auth-agree-tos" class="text-xs text-textMuted cursor-pointer leading-relaxed select-none">
+            I agree to the community rules: No swearing or bad phrases. I understand that violations will result in a <span class="text-red-400 font-bold">permanent ban</span>. No one wants this app to be taken down by a gaggle.
+          </label>
+        </div>
+        
         <button id="btn-auth-submit" type="submit" class="w-full py-3.5 mt-2 rounded-xl font-bold text-white transition-all bg-primary hover:bg-primaryHover shadow-lg shadow-primary/20 active:scale-[0.98]">
           Sign In
         </button>
@@ -2172,6 +2179,7 @@
         document.getElementById('auth-error').className = 'hidden bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl font-medium text-center';
         document.getElementById('auth-email').value = '';
         document.getElementById('auth-password').value = '';
+        document.getElementById('auth-agree-tos').checked = false;
         document.getElementById('auth-email').classList.remove('hidden');
         document.getElementById('auth-password').classList.remove('hidden');
         document.getElementById('btn-forgot-password').classList.remove('hidden');
