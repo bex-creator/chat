@@ -3626,41 +3626,16 @@
           [`typing.${userName}`]: 0
       }).catch(e => {});
 
-      // --- AI PRE-FLIGHT MODERATION ---
-      let isInstantlyDeleted = false;
-      let punishment = null;
-
-      if (text && !isAdmin()) {
-          try {
-              const modPrompt = "Analyze this message for toxicity and bad phrases. Reply EXACTLY with one of these words: SAFE (clean), BAD (profanity/bad words), SEVERE (highly toxic/slurs), EXTREME (illegal/threats). Do not include any other text. Message: " + text;
-              let modResult = await callPollinationsAPI(text, modPrompt);
-              modResult = modResult.trim().toUpperCase();
-
-              if (modResult.includes("EXTREME")) {
-                  isInstantlyDeleted = true;
-                  punishment = 'extreme';
-              } else if (modResult.includes("SEVERE")) {
-                  isInstantlyDeleted = true;
-                  punishment = 'severe';
-              } else if (modResult.includes("BAD") || modResult.includes("MILD")) {
-                  isInstantlyDeleted = true;
-                  punishment = 'bad';
-              }
-          } catch(e) {
-              console.error("Auto-mod error", e);
-          }
-      }
-
       const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const msgRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId);
 
       await setDoc(msgRef, {
         chatId: activeChatId,
-        text: isInstantlyDeleted ? "" : text,
-        deleted: isInstantlyDeleted,
-        deletedAt: isInstantlyDeleted ? Date.now() : null,
-        imageUrl: isInstantlyDeleted ? null : (imageToSave || null),
-        replyTo: isInstantlyDeleted ? null : (replyData || null),
+        text: text,
+        deleted: false,
+        deletedAt: null,
+        imageUrl: imageToSave || null,
+        replyTo: replyData || null,
         sender: userName,
         senderNickname: userNickname,
         senderEmail: firebaseUser.email || null,
@@ -3671,20 +3646,9 @@
       
       markChatAsRead(activeChatId);
 
-      if (isInstantlyDeleted) {
-          if (punishment === 'extreme') {
-              await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
-                  suspension: { until: Date.now() + 3600000, reason: "Auto-Moderation: Extreme Toxicity", isPermanent: false, issuedAt: Date.now() },
-                  isBanned: false
-              });
-              showInAppNotification({sender: "System", text: "Your account has been suspended for extreme toxicity."}, null);
-          } else if (punishment === 'severe') {
-              await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), { muted: true });
-              showInAppNotification({sender: "Nexus AI", text: "Your message was blocked and you have been muted for severe toxicity."}, null);
-          } else {
-              showInAppNotification({sender: "Nexus AI", text: "Your message was blocked for containing prohibited words or bad phrases."}, null);
-          }
-          return; // Stop AI generation, Pet interaction, XP
+      // --- ASYNC AI MODERATION (Post-send) ---
+      if (text && !isAdmin()) {
+          evaluateMessageAsync(msgId, text, userName);
       }
 
       // Trigger Nexus Persona Bot if @Nexus is mentioned or if it is currently active in this chat
@@ -3713,6 +3677,37 @@
           window.lastMessageXpTime = Date.now();
       }
     });
+
+    // --- ASYNC AUTO MODERATION ---
+    async function evaluateMessageAsync(msgId, text, senderUsername) {
+        try {
+            const modPrompt = "Analyze this message for toxicity and bad phrases. Reply EXACTLY with one of these words: SAFE (clean), BAD (profanity/bad words), SEVERE (highly toxic/slurs), EXTREME (illegal/threats). Do not include any other text. Message: " + text;
+            let modResult = await callPollinationsAPI(text, modPrompt);
+            modResult = modResult.trim().toUpperCase();
+
+            if (modResult.includes("EXTREME") || modResult.includes("SEVERE") || modResult.includes("BAD") || modResult.includes("MILD")) {
+                // Retroactively delete message
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
+                    deleted: true,
+                    deletedAt: Date.now()
+                });
+
+                // Suspend the user for exactly 20 minutes
+                const banUntil = Date.now() + (20 * 60 * 1000);
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', senderUsername.toLowerCase()), {
+                    suspension: { 
+                        until: banUntil, 
+                        reason: "Auto-Moderation: Inappropriate phrase detected", 
+                        isPermanent: false, 
+                        issuedAt: Date.now() 
+                    },
+                    isBanned: false
+                });
+            }
+        } catch(e) {
+            console.error("Async auto-mod error", e);
+        }
+    }
 
     // --- NEXUS BOT PERSONA ---
     window.nexusTimeouts = window.nexusTimeouts || {};
