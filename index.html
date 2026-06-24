@@ -1558,16 +1558,21 @@
   <!-- ==================== CALL MODAL (NATIVE P2P WEBRTC) ==================== -->
   <div id="call-modal" class="hidden fixed bottom-6 right-6 w-[400px] h-[500px] z-[9999] bg-[#0B0E14] border border-white/10 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)]">
       <!-- Draggable Header -->
-      <div id="call-header" class="h-12 bg-black/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none group">
-          <div class="flex items-center gap-2 text-emerald-400 font-bold pointer-events-none">
-              <div class="relative flex items-center justify-center w-6 h-6">
+      <div id="call-header" class="h-14 bg-black/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none group">
+          <div class="flex items-center gap-2 text-emerald-400 font-bold pointer-events-none max-w-[100px] sm:max-w-[120px] flex-shrink-0">
+              <div class="relative flex items-center justify-center w-6 h-6 flex-shrink-0">
                   <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-20 animate-ping"></span>
                   <i data-lucide="phone-call" class="w-4 h-4 relative z-10"></i>
               </div>
-              <span class="text-sm truncate max-w-[120px]" id="call-room-name-display">Active Call</span>
+              <span class="text-sm truncate hidden sm:inline" id="call-room-name-display">Active Call</span>
           </div>
           
-          <div class="flex items-center gap-1 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
+          <!-- Active Callers Avatars Strip (Visible when minimized) -->
+          <div id="minimized-call-avatars" class="flex-1 flex items-center justify-center gap-1.5 px-2 overflow-hidden pointer-events-none">
+              <!-- Mini avatars injected here -->
+          </div>
+
+          <div class="flex items-center gap-0.5 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button onclick="toggleAudio()" id="btn-call-audio" class="p-1.5 text-emerald-400 hover:bg-white/10 rounded-lg transition-colors" title="Toggle Microphone">
                   <i data-lucide="mic" class="w-4 h-4 pointer-events-none"></i>
               </button>
@@ -1575,10 +1580,10 @@
                   <i data-lucide="video" class="w-4 h-4 pointer-events-none"></i>
               </button>
               <div class="w-px h-4 bg-white/10 mx-1"></div>
-              <button onclick="toggleMinimizeCall()" id="btn-call-minimize" class="p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Minimize">
+              <button onclick="toggleMinimizeCall()" id="btn-call-minimize" class="p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Minimize / Expand">
                   <i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>
               </button>
-              <button onclick="toggleFullscreenCall()" id="btn-call-fullscreen" class="p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Fullscreen">
+              <button onclick="toggleFullscreenCall()" id="btn-call-fullscreen" class="hidden sm:block p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Fullscreen">
                   <i data-lucide="maximize" class="w-4 h-4 pointer-events-none"></i>
               </button>
               <button onclick="closeCall()" class="ml-1 bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white p-1.5 rounded-lg transition-colors" title="Leave Call">
@@ -8521,7 +8526,6 @@
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun.cloudflare.com:3478' }
         ]
     };
@@ -8549,21 +8553,40 @@
                 const wrapper = document.getElementById(wrapperId);
                 const avatar = document.getElementById(avatarId);
                 
+                // Fetch the mini-avatar in the header
+                let peerId = wrapperId.replace('vid-wrapper-', '');
+                if (peerId === 'local') peerId = userName;
+                const miniAvatar = document.getElementById('mini-avatar-' + peerId);
+                
                 if (avg > 15) { // Speaking threshold
-                    wrapper.style.borderColor = '#10b981'; // Emerald
-                    wrapper.style.boxShadow = '0 0 25px rgba(16,185,129,0.5)';
+                    if (wrapper) {
+                        wrapper.style.borderColor = '#10b981'; // Emerald
+                        wrapper.style.boxShadow = '0 0 25px rgba(16,185,129,0.5)';
+                    }
                     if (avatar) {
                         avatar.style.borderColor = '#10b981';
                         avatar.style.boxShadow = '0 0 20px rgba(16,185,129,0.5)';
                         avatar.classList.add('scale-110');
                     }
+                    if (miniAvatar) {
+                        miniAvatar.style.borderColor = '#10b981';
+                        miniAvatar.style.boxShadow = '0 0 10px rgba(16,185,129,0.8)';
+                        miniAvatar.classList.add('scale-110', 'z-10');
+                    }
                 } else {
-                    wrapper.style.borderColor = 'rgba(255,255,255,0.1)';
-                    wrapper.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.5)';
+                    if (wrapper) {
+                        wrapper.style.borderColor = 'rgba(255,255,255,0.1)';
+                        wrapper.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.5)';
+                    }
                     if (avatar) {
                         avatar.style.borderColor = '#0B0E14';
                         avatar.style.boxShadow = '0 25px 50px -12px rgba(0,0,0,0.25)';
                         avatar.classList.remove('scale-110');
+                    }
+                    if (miniAvatar) {
+                        miniAvatar.style.borderColor = 'transparent';
+                        miniAvatar.style.boxShadow = 'none';
+                        miniAvatar.classList.remove('scale-110', 'z-10');
                     }
                 }
                 requestAnimationFrame(checkAudio);
@@ -8625,14 +8648,19 @@
             } catch (e2) {
                 console.error("Media error:", e2);
                 document.getElementById('call-loading-text').innerHTML = `
-                    <i data-lucide="alert-triangle" class="w-8 h-8 mb-2 text-red-400"></i>
-                    <span class="font-bold text-red-400 text-center px-4">Camera or Microphone access denied.<br/>Check browser permissions!</span>
-                `;
+                <i data-lucide="alert-triangle" class="w-8 h-8 mb-2 text-red-400"></i>
+                <span class="font-bold text-red-400 text-center px-4">Camera or Microphone access denied.<br/>Check browser permissions!</span>
+            `;
                 if (typeof lucide !== 'undefined') lucide.createIcons();
                 modal.classList.remove('hidden');
                 return;
             }
         }
+
+        // Render self immediately in the mini-avatar header so it isn't empty while connecting
+        document.getElementById('minimized-call-avatars').innerHTML = `
+            <img src="${myPhoto}" id="mini-avatar-${userName}" class="w-7 h-7 rounded-full border-2 border-transparent object-cover shadow-sm transition-all duration-200" title="You" />
+        `;
         
         const localVidEl = document.getElementById('local-video');
         if (localVidEl && localStream) {
@@ -8672,6 +8700,15 @@
             if(!data) return;
             const callers = data.activeCallers || [];
 
+            // Update Mini Avatars Header
+            let miniAvatarsHTML = '';
+            callers.forEach(c => {
+                const profile = allAppUsers.find(u => u.id === c.toLowerCase());
+                const photo = profile?.photoURL || (c === userName ? myPhoto : 'https://via.placeholder.com/150');
+                miniAvatarsHTML += `<img src="${photo}" id="mini-avatar-${c}" class="w-7 h-7 rounded-full border-2 border-transparent object-cover shadow-sm transition-all duration-200 bg-inputBg" title="@${profile?.nickname || c}" />`;
+            });
+            document.getElementById('minimized-call-avatars').innerHTML = miniAvatarsHTML;
+
             // Connect to new peers
             callers.forEach(peerId => {
                 if (peerId !== userName && !peerConnections[peerId]) {
@@ -8691,18 +8728,18 @@
         if (modal.classList.contains('hidden')) {
             modal.style.width = window.innerWidth < 600 ? '100%' : '400px';
             modal.dataset.prevHeight = window.innerWidth < 600 ? '40%' : '500px';
-            modal.style.height = '500px'; 
+            modal.style.height = '56px'; // Starts MINIMIZED (h-14)
             modal.style.bottom = window.innerWidth < 600 ? '0' : '24px';
             modal.style.right = window.innerWidth < 600 ? '0' : '24px';
             modal.style.top = 'auto';
             modal.style.left = 'auto';
-            isCallMinimized = false;
+            isCallMinimized = true;
             isCallFullscreen = false;
-            modal.classList.remove('h-12');
+            modal.classList.remove('h-12'); // Clean up old header height just in case
             modal.classList.remove('inset-0', 'rounded-none');
             modal.classList.add('rounded-2xl');
             document.getElementById('btn-call-fullscreen').innerHTML = '<i data-lucide="maximize" class="w-4 h-4 pointer-events-none"></i>';
-            document.getElementById('btn-call-minimize').innerHTML = '<i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>';
+            document.getElementById('btn-call-minimize').innerHTML = '<i data-lucide="plus" class="w-4 h-4 pointer-events-none text-emerald-400"></i>';
         }
         
         modal.classList.remove('hidden');
@@ -8979,7 +9016,7 @@
         if (isCallMinimized) {
             // Save height before minimizing
             modal.dataset.prevHeight = modal.style.height || '500px';
-            modal.style.height = '48px'; // Just the header height
+            modal.style.height = '56px'; // Just the header height (h-14)
             minBtn.innerHTML = '<i data-lucide="plus" class="w-4 h-4 pointer-events-none text-emerald-400"></i>';
         } else {
             modal.style.height = modal.dataset.prevHeight || '500px';
@@ -9098,9 +9135,9 @@
         const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
         const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
         
-        // Expand the UI if the user just clicked the header while minimized without dragging!
+        // Expand or Collapse the UI if the user just clicked the header without dragging
         const distMoved = Math.abs(clientX - callDragStartX) + Math.abs(clientY - callDragStartY);
-        if (distMoved < 5 && isCallMinimized) {
+        if (distMoved < 5) {
             toggleMinimizeCall();
         }
     }
