@@ -8681,7 +8681,7 @@
             // Disconnect peers who left
             Object.keys(peerConnections).forEach(peerId => {
                 if (!callers.includes(peerId)) {
-                    cleanupPeer(peerId);
+                    cleanupPeer(peerId, false);
                 }
             });
         });
@@ -8709,6 +8709,8 @@
     }
 
     async function connectToPeer(peerName, chatId) {
+        if (peerConnections[peerName]) return;
+
         const pc = new RTCPeerConnection(rtcConfig);
         const pairId = [userName, peerName].sort().join('_');
         const sigRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId, 'webrtc', pairId);
@@ -8744,6 +8746,7 @@
         // Receive remote tracks reliably
         pc.ontrack = (event) => {
             let remoteVid = document.getElementById(`remote-video-${peerName}`);
+            if (!remoteVid) return;
             
             if (event.streams && event.streams[0]) {
                 remoteVid.srcObject = event.streams[0];
@@ -8777,7 +8780,7 @@
             
             if (pc.connectionState === 'connected') {
                 statusEl.classList.add('text-emerald-400');
-                setTimeout(() => { if (statusEl) statusEl.classList.add('hidden'); }, 4000);
+                setTimeout(() => { if (statusEl) statusEl.classList.add('hidden'); }, 3000);
             } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
                 statusEl.classList.add('text-red-400');
                 statusEl.textContent = "BLOCKED BY FILTER";
@@ -8806,11 +8809,30 @@
         };
 
         let isNegotiating = false;
+        let activeSessionToken = null;
+        let lastReceiverJoined = null;
+
+        const processCandidates = (data) => {
+            if (data[theirCandidatesKey] && pc.remoteDescription) {
+                data[theirCandidatesKey].forEach(c => {
+                    const str = JSON.stringify(c);
+                    if (peerConnections[peerName] && !peerConnections[peerName].processedCandidates.has(str)) {
+                        pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+                        peerConnections[peerName].processedCandidates.add(str);
+                    }
+                });
+            }
+        };
 
         // Signaling Logic
         if (isInitiator) {
+            activeSessionToken = Date.now();
             // Initiator strictly resets the document state to avoid race conditions from old calls
-            await setDoc(sigRef, { offer: null, answer: null, candidatesA: [], candidatesB: [], timestamp: Date.now() });
+            await setDoc(sigRef, { 
+                sessionToken: activeSessionToken,
+                offer: null, answer: null, candidatesA: [], candidatesB: [], timestamp: Date.now(),
+                receiverJoined: null
+            });
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -8820,65 +8842,81 @@
                 const data = snap.data();
                 if (!data) return;
                 
+                // Handle receiver rejoins (Self-healing!)
+                if (data.receiverJoined && data.receiverJoined !== lastReceiverJoined) {
+                    lastReceiverJoined = data.receiverJoined;
+                    if (pc.signalingState === 'stable' && pc.currentRemoteDescription) {
+                        try {
+                            const newOffer = await pc.createOffer({ iceRestart: true });
+                            await pc.setLocalDescription(newOffer);
+                            await setDoc(sigRef, { offer: { type: newOffer.type, sdp: newOffer.sdp }, answer: null }, { merge: true });
+                        } catch(e) {}
+                    }
+                }
+
                 // Set remote answer
                 if (data.answer && !pc.currentRemoteDescription) {
                     try {
                         await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    } catch(e) { console.error("Set Answer Error:", e); }
+                    } catch(e) {}
+                }
+                // Handle answer for ICE restart
+                else if (data.answer && pc.currentRemoteDescription && pc.signalingState === 'have-local-offer') {
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    } catch(e) {}
                 }
                 
-                // Add their ICE candidates ONLY after remote description is set
-                if (data[theirCandidatesKey] && pc.remoteDescription) {
-                    data[theirCandidatesKey].forEach(c => {
-                        const str = JSON.stringify(c);
-                        if (!peerConnections[peerName].processedCandidates.has(str)) {
-                            pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
-                            peerConnections[peerName].processedCandidates.add(str);
-                        }
-                    });
-                }
+                processCandidates(data);
             });
         } else {
-            // Receiver waits for the offer to appear
+            // Receiver logic
+            await setDoc(sigRef, { receiverJoined: Date.now() }, { merge: true });
+
             peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
                 if (!data) return;
 
+                // Handle initiator restarts
+                if (!activeSessionToken && data.sessionToken) {
+                    activeSessionToken = data.sessionToken;
+                } else if (data.sessionToken && activeSessionToken && data.sessionToken !== activeSessionToken) {
+                    cleanupPeer(peerName, true); // Keep UI intact to avoid blinking
+                    connectToPeer(peerName, chatId);
+                    return;
+                }
+
                 // Reply with answer
-                if (data.offer && !pc.currentRemoteDescription && !isNegotiating) {
+                let currentOfferSdp = pc.currentRemoteDescription ? pc.currentRemoteDescription.sdp : null;
+
+                if (data.offer && (!pc.currentRemoteDescription || data.offer.sdp !== currentOfferSdp) && !isNegotiating) {
                     isNegotiating = true;
                     try {
                         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
-                        await updateDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
-                    } catch(e) { console.error("Set Offer Error:", e); }
+                        await setDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } }, { merge: true });
+                    } catch(e) {}
                     isNegotiating = false;
                 }
 
-                // Add their ICE candidates ONLY after remote description is set
-                if (data[theirCandidatesKey] && pc.remoteDescription) {
-                    data[theirCandidatesKey].forEach(c => {
-                        const str = JSON.stringify(c);
-                        if (!peerConnections[peerName].processedCandidates.has(str)) {
-                            pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
-                            peerConnections[peerName].processedCandidates.add(str);
-                        }
-                    });
-                }
+                processCandidates(data);
             });
         }
     }
 
-    function cleanupPeer(peerName) {
+    function cleanupPeer(peerName, keepUI = false) {
         if (peerConnections[peerName]) {
             if (peerConnections[peerName].unsubSignaling) {
                 peerConnections[peerName].unsubSignaling();
             }
             peerConnections[peerName].pc.close();
             delete peerConnections[peerName];
-            const wrapper = document.getElementById(`vid-wrapper-${peerName}`);
-            if (wrapper) wrapper.remove();
+            
+            if (!keepUI) {
+                const wrapper = document.getElementById(`vid-wrapper-${peerName}`);
+                if (wrapper) wrapper.remove();
+            }
         }
     }
 
@@ -8899,7 +8937,7 @@
 
         // Cleanup all peer connections
         Object.keys(peerConnections).forEach(peerId => {
-            cleanupPeer(peerId);
+            cleanupPeer(peerId, false);
         });
 
         // Kill local media tracks to turn off camera light
