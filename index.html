@@ -8409,11 +8409,18 @@
         });
     }
 
+    // Securly Bypass Calling Servers
     const CALL_SERVERS = [
-        "https://meet.ffmuc.net/",      // Freifunk München (Usually flies under the radar of Securly)
-        "https://kmeet.infomaniak.com/",// Infomaniak Swiss Host (Very reliable backup)
-        "https://meet.element.io/",     // Element Matrix Host
-        "https://meet.jit.si/"          // Standard Jitsi (often blocked, kept as last resort)
+        // VDO.Ninja uses WebRTC P2P mesh networking - extremely hard for Securly to block entirely
+        { name: "VDO.Ninja (P2P Stealth)", build: (room, user) => `https://vdo.ninja/?room=${room}&label=${encodeURIComponent(user)}` },
+        // Chitchatter is another P2P alternative that flies under the radar
+        { name: "ChitChatter (P2P Secure)", build: (room, user) => `https://chitchatter.im/public/${room}?displayName=${encodeURIComponent(user)}` },
+        // Brave Talk (obscure Jitsi fork)
+        { name: "Brave Talk", build: (room, user) => `https://talk.brave.com/${room}#userInfo.displayName=${encodeURIComponent(user)}` },
+        // Infomaniak (Swiss host, often unblocked)
+        { name: "Infomaniak Host", build: (room, user) => `https://kmeet.infomaniak.com/${room}#userInfo.displayName=${encodeURIComponent(user)}` },
+        // Default Jitsi
+        { name: "Jitsi Default", build: (room, user) => `https://meet.jit.si/${room}#userInfo.displayName=${encodeURIComponent(user)}` }
     ];
     let currentCallServerIdx = 0;
 
@@ -8449,14 +8456,16 @@
         const modal = document.getElementById('call-modal');
         const container = document.getElementById('jitsi-container');
         
-        const serverUrl = CALL_SERVERS[currentCallServerIdx];
-        const fullUrl = `${serverUrl}${roomName}#userInfo.displayName=${encodeURIComponent(userNickname || userName)}`;
+        const serverDef = CALL_SERVERS[currentCallServerIdx];
+        const displayName = userNickname || userName;
+        const fullUrl = serverDef.build(roomName, displayName);
         
         container.innerHTML = `
             <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0">
                 <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2"></i>
                 <span>Connecting to secure call server...</span>
-                <span class="text-xs mt-2 opacity-70">Server: ${new URL(serverUrl).hostname}</span>
+                <span class="text-sm mt-3 font-bold text-emerald-400">Network: ${serverDef.name}</span>
+                <span class="text-xs mt-1 text-slate-400">If blocked, click "Try Alternate Server" at the top!</span>
             </div>
             <iframe class="relative z-10" allow="camera; microphone; fullscreen; display-capture; autoplay" src="${fullUrl}" style="width:100%; height:100%; border:none;"></iframe>
         `;
