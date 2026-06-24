@@ -8493,13 +8493,13 @@
         });
     }
 
-    // Call Servers - Removed blocked ffmuc, shifted to international/enterprise stealth servers
+    // Call Servers - COMPLETELY ABANDONED Jitsi and VDO.ninja!
+    // Now using pure WebRTC & open-source P2P networks that Securly rarely tracks.
     const CALL_SERVERS = [
-        { name: "Infomaniak (Swiss Host)", build: (room, user, avatar) => `https://kmeet.infomaniak.com/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "Autistici (Italian Stealth)", build: (room, user, avatar) => `https://vc.autistici.org/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "Hostsharing (German Stealth)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "Jitsi Linux (Stealth 4)", build: (room, user, avatar) => `https://jitsi.linux.it/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "VDO.Ninja (Last Resort P2P)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&push&autojoin#label=${encodeURIComponent(user)}&avatar=${encodeURIComponent(avatar)}` }
+        { name: "MiroTalk (P2P WebRTC)", build: (room, user) => `https://p2p.mirotalk.com/join?room=${room}&name=${encodeURIComponent(user)}` },
+        { name: "Zipcall (Direct P2P)", build: (room, user) => `https://zipcall.io/call/${room}` },
+        { name: "Jami (GNU Secure)", build: (room, user) => `https://meet.jami.net/${room}` },
+        { name: "Zooroom (Lightweight)", build: (room, user) => `https://zooroom.chat/${room}` }
     ];
     let currentCallServerIdx = 0;
     
@@ -8532,8 +8532,7 @@
         
         const serverDef = CALL_SERVERS[currentCallServerIdx];
         const displayName = userNickname || userName;
-        const fallbackAvatar = currentPhotoURL || 'https://via.placeholder.com/150';
-        const fullUrl = serverDef.build(roomName, displayName, fallbackAvatar);
+        const fullUrl = serverDef.build(roomName, displayName);
         
         // Update Title
         const activeChat = allChats[targetChatId];
