@@ -1571,6 +1571,9 @@
               <button onclick="switchCallServer()" class="text-[10px] bg-white/5 hover:bg-white/10 text-slate-300 px-2 py-1.5 rounded border border-white/10 transition-colors uppercase tracking-widest mr-1 flex items-center gap-1.5" title="Switch Server (Bypass Blockers)">
                   <i data-lucide="refresh-cw" class="w-3 h-3"></i> <span class="hidden sm:inline">Switch</span>
               </button>
+              <button onclick="popOutCall()" class="p-1.5 text-blue-400 hover:text-white hover:bg-blue-500/20 rounded-lg transition-colors" title="Pop Out to New Tab (Fixes Blank Screens!)">
+                  <i data-lucide="external-link" class="w-4 h-4 pointer-events-none"></i>
+              </button>
               <button onclick="toggleMinimizeCall()" id="btn-call-minimize" class="p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Minimize">
                   <i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>
               </button>
@@ -8493,15 +8496,15 @@
         });
     }
 
-    // Call Servers - COMPLETELY ABANDONED Jitsi and VDO.ninja!
-    // Now using pure WebRTC & open-source P2P networks that Securly rarely tracks.
+    // Call Servers - Restored to obscure Jitsi servers that ALLOW iframes, and removed the base64 avatar param that was breaking URLs
     const CALL_SERVERS = [
-        { name: "MiroTalk (P2P WebRTC)", build: (room, user) => `https://p2p.mirotalk.com/join?room=${room}&name=${encodeURIComponent(user)}` },
-        { name: "Zipcall (Direct P2P)", build: (room, user) => `https://zipcall.io/call/${room}` },
-        { name: "Jami (GNU Secure)", build: (room, user) => `https://meet.jami.net/${room}` },
-        { name: "Zooroom (Lightweight)", build: (room, user) => `https://zooroom.chat/${room}` }
+        { name: "Murena Meet (Stealth)", build: (room, user) => `https://meet.murena.io/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` },
+        { name: "Brave Talk (Secure)", build: (room, user) => `https://talk.brave.com/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` },
+        { name: "Infomaniak (Swiss)", build: (room, user) => `https://kmeet.infomaniak.com/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` },
+        { name: "Jitsi (Standard)", build: (room, user) => `https://meet.jit.si/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` }
     ];
     let currentCallServerIdx = 0;
+    window.currentCallUrl = "";
     
     // Call Window State
     let isCallMinimized = false;
@@ -8511,6 +8514,13 @@
     window.switchCallServer = function() {
         currentCallServerIdx = (currentCallServerIdx + 1) % CALL_SERVERS.length;
         startOrJoinCall(activeChatId, true);
+    };
+
+    window.popOutCall = function() {
+        if (window.currentCallUrl) {
+            window.open(window.currentCallUrl, '_blank');
+            closeCall(); // Close the PiP window so there's no echo
+        }
     };
 
     window.startOrJoinCall = async function(chatIdToJoin = null, isSwitching = false) {
@@ -8532,7 +8542,9 @@
         
         const serverDef = CALL_SERVERS[currentCallServerIdx];
         const displayName = userNickname || userName;
+        
         const fullUrl = serverDef.build(roomName, displayName);
+        window.currentCallUrl = fullUrl; // Save for pop-out
         
         // Update Title
         const activeChat = allChats[targetChatId];
@@ -8547,10 +8559,11 @@
         }
         
         container.innerHTML = `
-            <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0 bg-[#0B0E14]">
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0 bg-[#0B0E14] px-4 text-center">
                 <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2 text-emerald-400"></i>
                 <span class="font-medium text-slate-300">Connecting to call...</span>
                 <span class="text-xs mt-3 font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">${serverDef.name}</span>
+                <span class="text-[10px] mt-4 text-slate-500">If the screen stays blank, the server is blocking embeds. Click the blue Pop-Out button above!</span>
             </div>
             <iframe class="relative z-10 flex-1" allow="camera; microphone; fullscreen; display-capture; autoplay" src="${fullUrl}" style="width:100%; height:100%; border:none;"></iframe>
         `;
