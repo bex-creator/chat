@@ -8446,10 +8446,10 @@
 
     // Call Servers - Upgraded to pass Avatar URLs to iframe
     const CALL_SERVERS = [
+        { name: "VDO.Ninja (P2P Stealth)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&label=${encodeURIComponent(user)}` },
         { name: "Infomaniak Host", build: (room, user, avatar) => `https://kmeet.infomaniak.com/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
         { name: "Brave Talk", build: (room, user, avatar) => `https://talk.brave.com/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
         { name: "Jitsi Default", build: (room, user, avatar) => `https://meet.jit.si/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "VDO.Ninja (P2P Stealth)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&label=${encodeURIComponent(user)}` },
         { name: "ChitChatter (P2P Secure)", build: (room, user, avatar) => `https://chitchatter.im/public/${room}?displayName=${encodeURIComponent(user)}` }
     ];
     let currentCallServerIdx = 0;
