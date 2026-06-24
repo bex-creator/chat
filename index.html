@@ -8515,12 +8515,15 @@
     let isAudioMuted = false;
     let isVideoMuted = false;
 
-    // Robust STUN servers to bypass strict network firewalls
+    // Robust STUN/TURN servers to bypass strict network firewalls (Symmetric NAT)
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:global.stun.twilio.com:3478' },
-            { urls: 'stun:stun.cloudflare.com:3478' }
+            // Essential TURN servers to guarantee connection through Securly / School Firewalls
+            { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+            { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+            { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
         ]
     };
 
@@ -8559,22 +8562,30 @@
             </div>
         `;
 
-        // Request Media Permissions
+        // Request Media Permissions (with fallback for devices without cameras)
         try {
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            const localVidEl = document.getElementById('local-video');
-            if (localVidEl) localVidEl.srcObject = localStream;
-            document.getElementById('call-loading-text').classList.add('hidden');
         } catch(e) {
-            console.error("Media error:", e);
-            document.getElementById('call-loading-text').innerHTML = `
-                <i data-lucide="alert-triangle" class="w-8 h-8 mb-2 text-red-400"></i>
-                <span class="font-bold text-red-400 text-center px-4">Camera/Microphone access denied.<br/>Please allow permissions.</span>
-            `;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-            modal.classList.remove('hidden');
-            return;
+            try {
+                // Fallback to audio only if no camera is detected
+                localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+            } catch (e2) {
+                console.error("Media error:", e2);
+                document.getElementById('call-loading-text').innerHTML = `
+                    <i data-lucide="alert-triangle" class="w-8 h-8 mb-2 text-red-400"></i>
+                    <span class="font-bold text-red-400 text-center px-4">Camera or Microphone access denied.<br/>Check browser permissions!</span>
+                `;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                modal.classList.remove('hidden');
+                return;
+            }
         }
+        
+        const localVidEl = document.getElementById('local-video');
+        if (localVidEl && localStream) {
+            localVidEl.srcObject = localStream;
+        }
+        document.getElementById('call-loading-text').classList.add('hidden');
 
         // Register user in active call state for this channel
         try {
@@ -8713,9 +8724,9 @@
                     sdpMid: event.candidate.sdpMid,
                     sdpMLineIndex: event.candidate.sdpMLineIndex
                 };
-                updateDoc(sigRef, {
+                setDoc(sigRef, {
                     [myCandidatesKey]: arrayUnion(candObj)
-                }).catch(()=>{});
+                }, { merge: true }).catch(()=>{});
             }
         };
 
@@ -8723,19 +8734,19 @@
 
         // Signaling Logic
         if (isInitiator) {
-            // Initiator creates the room doc and sets the offer
-            await setDoc(sigRef, { offer: null, answer: null, candidatesA: [], candidatesB: [] });
+            // Initiator creates the room doc and sets the offer (clearing old stale data)
+            await setDoc(sigRef, { offer: null, answer: null, candidatesA: [], candidatesB: [], timestamp: Date.now() });
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            await updateDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } });
+            await setDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } }, { merge: true });
 
             peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
                 if (!data) return;
                 
                 // Set remote answer
-                if (data.answer && pc.signalingState !== 'stable') {
+                if (data.answer && !pc.currentRemoteDescription) {
                     try {
                         await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                     } catch(e) { console.error("Set Answer Error:", e); }
@@ -8765,7 +8776,7 @@
                         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
-                        await updateDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
+                        await setDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } }, { merge: true });
                     } catch(e) { console.error("Set Offer Error:", e); }
                     isNegotiating = false;
                 }
