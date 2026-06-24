@@ -97,6 +97,10 @@
   
   <!-- Emoji Picker Element -->
   <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+
+  <!-- Driver.js for Visual Tour Guide -->
+  <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
   
   <style>
     :root {
@@ -275,6 +279,49 @@
     /* Subtle hover effect for black blur buttons */
     body.immersive-mode button:hover:not(.bg-primary):not(.bg-red-600) {
         background-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* Driver.js Dark Theme Overrides */
+    .driver-popover {
+        background-color: #131823 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        border-radius: 20px !important;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5) !important;
+    }
+    .driver-popover-title {
+        color: #fff !important;
+        font-weight: 800 !important;
+        font-size: 18px !important;
+        margin-bottom: 8px !important;
+    }
+    .driver-popover-description {
+        color: #8B94A5 !important;
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+    }
+    .driver-popover-footer button {
+        background-color: var(--theme-primary) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        text-shadow: none !important;
+        font-weight: bold !important;
+        transition: transform 0.1s;
+    }
+    .driver-popover-footer button:hover {
+        background-color: var(--theme-primary-hover) !important;
+    }
+    .driver-popover-footer button:active {
+        transform: scale(0.95);
+    }
+    .driver-popover-footer .driver-popover-btn-disabled {
+        opacity: 0.5 !important;
+        pointer-events: none !important;
+    }
+    .driver-popover-progress-text {
+        color: #8B94A5 !important;
+        font-weight: 600 !important;
     }
   </style>
 </head>
@@ -2607,6 +2654,96 @@
             } else if (isJoined && document.getElementById('banned-screen').classList.contains('hidden') === false) {
               showScreen('app'); 
             }
+
+            // --- NEXUS AI TOUR GUIDE ---
+            if (!myProfile.hasSeenTour && isJoined && !window.tourTriggered) {
+                window.tourTriggered = true;
+                
+                updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'users', userName.toLowerCase()), {
+                    hasSeenTour: true
+                }).catch(e => console.error("Error setting tour flag:", e));
+
+                setTimeout(() => {
+                    // Open sidebar on mobile so elements are visible
+                    if (window.innerWidth < 1024) {
+                        document.getElementById('btn-open-sidebar').click();
+                    }
+
+                    const driverObj = window.driver.js.driver;
+                    const tour = driverObj({
+                        showProgress: true,
+                        allowClose: false,
+                        overlayColor: 'rgba(0,0,0,0.8)',
+                        steps: [
+                            { 
+                                popover: { 
+                                    title: '✨ Welcome to Chat Space!', 
+                                    description: 'I am Nexus, your AI assistant and tour guide. Let me quickly show you around your new workspace so you don\'t get lost in the digital void.' 
+                                } 
+                            },
+                            { 
+                                element: '#tab-channels', 
+                                popover: { 
+                                    title: '📢 Channels', 
+                                    description: 'This is where you join public rooms to chat with everyone, or create private group channels.' 
+                                } 
+                            },
+                            { 
+                                element: '#tab-dms', 
+                                popover: { 
+                                    title: '💬 Direct Messages', 
+                                    description: 'Slide into DMs for one-on-one private conversations.' 
+                                } 
+                            },
+                            { 
+                                element: '#tab-games', 
+                                popover: { 
+                                    title: '🎮 Live Games', 
+                                    description: 'Bored? Check the Games tab to challenge your friends to Tic Tac Toe, Grid Tag, or live Trivia.' 
+                                } 
+                            },
+                            { 
+                                element: '#btn-open-shop', 
+                                popover: { 
+                                    title: '🛒 XP & Cosmetics', 
+                                    description: 'Every message you send earns you XP. Spend it here in the Shop to buy cool chat bubbles and glowing name colors.' 
+                                } 
+                            },
+                            { 
+                                element: '#btn-open-pet', 
+                                popover: { 
+                                    title: '🐶 Virtual Desk Pets', 
+                                    description: 'Save up your XP to adopt a virtual pet! Feed it, play with it, and flex it on your profile card.' 
+                                } 
+                            },
+                            { 
+                                element: '#btn-edit-profile', 
+                                popover: { 
+                                    title: '👤 Your Profile', 
+                                    description: 'Click your name here anytime to edit your avatar, change your nickname, or set a custom online status.' 
+                                } 
+                            },
+                            { 
+                                element: '#chat-input-wrapper', 
+                                popover: { 
+                                    title: '⌨️ Start Chatting', 
+                                    description: 'You\'re all set! Type your first message here. (Oh, and keep an eye out for the ✨ button if you ever need me to fix your grammar or summarize a chat!)',
+                                    side: 'top'
+                                } 
+                            }
+                        ],
+                        onDestroyStarted: () => {
+                            if (window.innerWidth < 1024) {
+                                document.getElementById('btn-close-sidebar').click();
+                            }
+                            tour.destroy();
+                        }
+                    });
+                    
+                    tour.drive();
+                }, 1000); // Short delay to let the UI finish rendering
+            }
+
           }
         }
 
