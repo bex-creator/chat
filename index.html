@@ -8515,11 +8515,12 @@
     let isAudioMuted = false;
     let isVideoMuted = false;
 
-    // Standard Google STUN servers (Publicly open, rarely blocked)
+    // Robust STUN servers to bypass strict network firewalls
     const rtcConfig = {
         iceServers: [
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            { urls: 'stun:stun.cloudflare.com:3478' }
         ]
     };
 
@@ -8659,7 +8660,7 @@
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         }
 
-        // Receive remote tracks
+        // Receive remote tracks reliably
         pc.ontrack = (event) => {
             let remoteVid = document.getElementById(`remote-video-${peerName}`);
             if (!remoteVid) {
@@ -8668,12 +8669,35 @@
                     <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50" id="vid-wrapper-${peerName}">
                        <video id="remote-video-${peerName}" class="w-full h-full object-cover" autoplay playsinline></video>
                        <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10">@${peerName}</div>
+                       <div id="status-${peerName}" class="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-yellow-400 uppercase tracking-widest border border-white/10">Connecting</div>
                     </div>
                 `);
                 remoteVid = document.getElementById(`remote-video-${peerName}`);
             }
-            if (remoteVid.srcObject !== event.streams[0]) {
+            if (event.streams && event.streams[0]) {
                 remoteVid.srcObject = event.streams[0];
+            } else {
+                if (!remoteVid.srcObject) remoteVid.srcObject = new MediaStream();
+                remoteVid.srcObject.addTrack(event.track);
+            }
+        };
+
+        // Track Connection State UI
+        pc.onconnectionstatechange = () => {
+            const statusEl = document.getElementById(`status-${peerName}`);
+            if (!statusEl) return;
+            
+            statusEl.textContent = pc.connectionState;
+            statusEl.classList.remove('hidden', 'text-yellow-400', 'text-emerald-400', 'text-red-400');
+            
+            if (pc.connectionState === 'connected') {
+                statusEl.classList.add('text-emerald-400');
+                setTimeout(() => { if (statusEl) statusEl.classList.add('hidden'); }, 4000);
+            } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                statusEl.classList.add('text-red-400');
+                statusEl.textContent = "BLOCKED BY FILTER";
+            } else {
+                statusEl.classList.add('text-yellow-400');
             }
         };
 
@@ -8681,14 +8705,21 @@
         const myCandidatesKey = isInitiator ? 'candidatesA' : 'candidatesB';
         const theirCandidatesKey = isInitiator ? 'candidatesB' : 'candidatesA';
 
-        // Listen for ICE candidates
+        // Listen for ICE candidates and safely serialize them
         pc.onicecandidate = (event) => {
             if (event.candidate) {
+                const candObj = {
+                    candidate: event.candidate.candidate,
+                    sdpMid: event.candidate.sdpMid,
+                    sdpMLineIndex: event.candidate.sdpMLineIndex
+                };
                 updateDoc(sigRef, {
-                    [myCandidatesKey]: arrayUnion(event.candidate.toJSON())
+                    [myCandidatesKey]: arrayUnion(candObj)
                 }).catch(()=>{});
             }
         };
+
+        let isNegotiating = false;
 
         // Signaling Logic
         if (isInitiator) {
@@ -8699,17 +8730,19 @@
             await pc.setLocalDescription(offer);
             await updateDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } });
 
-            peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, (snap) => {
+            peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
                 if (!data) return;
                 
                 // Set remote answer
-                if (!pc.currentRemoteDescription && data.answer) {
-                    pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(e => console.error(e));
+                if (data.answer && pc.signalingState !== 'stable') {
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    } catch(e) { console.error("Set Answer Error:", e); }
                 }
                 
-                // Add their ICE candidates
-                if (data[theirCandidatesKey]) {
+                // Add their ICE candidates ONLY after remote description is set
+                if (data[theirCandidatesKey] && pc.remoteDescription) {
                     data[theirCandidatesKey].forEach(c => {
                         const str = JSON.stringify(c);
                         if (!peerConnections[peerName].processedCandidates.has(str)) {
@@ -8726,15 +8759,19 @@
                 if (!data) return;
 
                 // Reply with answer
-                if (!pc.currentRemoteDescription && data.offer) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    await updateDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
+                if (data.offer && !pc.currentRemoteDescription && !isNegotiating) {
+                    isNegotiating = true;
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+                        await updateDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
+                    } catch(e) { console.error("Set Offer Error:", e); }
+                    isNegotiating = false;
                 }
 
-                // Add their ICE candidates
-                if (data[theirCandidatesKey]) {
+                // Add their ICE candidates ONLY after remote description is set
+                if (data[theirCandidatesKey] && pc.remoteDescription) {
                     data[theirCandidatesKey].forEach(c => {
                         const str = JSON.stringify(c);
                         if (!peerConnections[peerName].processedCandidates.has(str)) {
