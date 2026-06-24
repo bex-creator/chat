@@ -8515,15 +8515,13 @@
     let isAudioMuted = false;
     let isVideoMuted = false;
 
-    // Robust STUN/TURN servers to bypass strict network firewalls (Symmetric NAT)
+    // Robust STUN servers to bypass strict network firewalls
+    // Removed the broken metered TURN servers that were rejecting connections
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
-            // Essential TURN servers to guarantee connection through Securly / School Firewalls
-            { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-            { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-            { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' }
         ]
     };
 
@@ -8547,7 +8545,10 @@
             document.getElementById('call-room-name-display').textContent = chatTitle;
         }
 
-        // Reset UI Container
+        const myProfile = allAppUsers.find(u => u.id === userName.toLowerCase());
+        const myPhoto = myProfile?.photoURL || currentPhotoURL || 'https://via.placeholder.com/150';
+
+        // Reset UI Container with PFP injected
         container.innerHTML = `
             <div id="call-loading-text" class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0">
                 <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2 text-emerald-400"></i>
@@ -8556,8 +8557,10 @@
             </div>
             <div id="video-grid" class="w-full h-full p-2 flex flex-wrap content-center justify-center gap-2 relative z-10">
                 <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50" id="vid-wrapper-local">
-                   <video id="local-video" class="w-full h-full object-cover transform scale-x-[-1]" autoplay muted playsinline></video>
-                   <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10">You</div>
+                   <img src="${myPhoto}" class="absolute inset-0 w-full h-full object-cover opacity-30 blur-md z-0" />
+                   <img src="${myPhoto}" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-sidebarBg shadow-2xl z-0" />
+                   <video id="local-video" class="relative z-10 w-full h-full object-cover transform scale-x-[-1]" autoplay muted playsinline></video>
+                   <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10 z-20">You</div>
                 </div>
             </div>
         `;
@@ -8671,6 +8674,9 @@
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         }
 
+        const peerProfile = allAppUsers.find(u => u.id === peerName.toLowerCase());
+        const peerPhoto = peerProfile?.photoURL || 'https://via.placeholder.com/150';
+
         // Receive remote tracks reliably
         pc.ontrack = (event) => {
             let remoteVid = document.getElementById(`remote-video-${peerName}`);
@@ -8678,9 +8684,11 @@
                 const grid = document.getElementById('video-grid');
                 grid.insertAdjacentHTML('beforeend', `
                     <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50" id="vid-wrapper-${peerName}">
-                       <video id="remote-video-${peerName}" class="w-full h-full object-cover" autoplay playsinline></video>
-                       <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10">@${peerName}</div>
-                       <div id="status-${peerName}" class="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-yellow-400 uppercase tracking-widest border border-white/10">Connecting</div>
+                       <img src="${peerPhoto}" class="absolute inset-0 w-full h-full object-cover opacity-30 blur-md z-0" />
+                       <img src="${peerPhoto}" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-sidebarBg shadow-2xl z-0" />
+                       <video id="remote-video-${peerName}" class="relative z-10 w-full h-full object-cover" autoplay playsinline></video>
+                       <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10 z-20">@${peerName}</div>
+                       <div id="status-${peerName}" class="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-yellow-400 uppercase tracking-widest border border-white/10 z-20">Connecting</div>
                     </div>
                 `);
                 remoteVid = document.getElementById(`remote-video-${peerName}`);
@@ -8691,6 +8699,11 @@
                 if (!remoteVid.srcObject) remoteVid.srcObject = new MediaStream();
                 remoteVid.srcObject.addTrack(event.track);
             }
+
+            // Force play to bypass browser autoplay restrictions
+            remoteVid.onloadedmetadata = () => {
+                remoteVid.play().catch(e => console.error("Autoplay prevented by browser:", e));
+            };
         };
 
         // Track Connection State UI
