@@ -8521,6 +8521,7 @@
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun.cloudflare.com:3478' }
         ]
     };
@@ -8713,7 +8714,10 @@
 
         const pc = new RTCPeerConnection(rtcConfig);
         const pairId = [userName, peerName].sort().join('_');
-        const sigRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId, 'webrtc', pairId);
+        
+        // FIX: Using a top-level collection to prevent Firebase from rejecting deep subcollection queries
+        const sigDocId = `${chatId}_${pairId}`;
+        const sigRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'webrtc', sigDocId);
 
         peerConnections[peerName] = { 
             pc: pc, 
@@ -8770,22 +8774,26 @@
             };
         };
 
-        // Track Connection State UI
-        pc.onconnectionstatechange = () => {
+        // Track Connection State UI (Using iceConnectionState for far better cross-browser reliability)
+        pc.oniceconnectionstatechange = () => {
             const statusEl = document.getElementById(`status-${peerName}`);
             if (!statusEl) return;
             
-            statusEl.textContent = pc.connectionState;
-            statusEl.classList.remove('hidden', 'text-yellow-400', 'text-emerald-400', 'text-red-400');
-            
-            if (pc.connectionState === 'connected') {
-                statusEl.classList.add('text-emerald-400');
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                statusEl.textContent = 'CONNECTED';
+                statusEl.classList.replace('text-yellow-400', 'text-emerald-400');
+                statusEl.classList.replace('text-red-400', 'text-emerald-400');
                 setTimeout(() => { if (statusEl) statusEl.classList.add('hidden'); }, 3000);
-            } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-                statusEl.classList.add('text-red-400');
-                statusEl.textContent = "BLOCKED BY FILTER";
+            } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                statusEl.classList.remove('hidden');
+                statusEl.textContent = "DISCONNECTED";
+                statusEl.classList.replace('text-yellow-400', 'text-red-400');
+                statusEl.classList.replace('text-emerald-400', 'text-red-400');
             } else {
-                statusEl.classList.add('text-yellow-400');
+                statusEl.classList.remove('hidden');
+                statusEl.textContent = "CONNECTING...";
+                statusEl.classList.replace('text-red-400', 'text-yellow-400');
+                statusEl.classList.replace('text-emerald-400', 'text-yellow-400');
             }
         };
 
@@ -8801,24 +8809,22 @@
                     sdpMid: event.candidate.sdpMid,
                     sdpMLineIndex: event.candidate.sdpMLineIndex
                 };
-                // FIX: Use setDoc with merge to never accidentally wipe out the other person's data
+                // FIX: Stringify the candidate to prevent Firebase arrayUnion failures
                 setDoc(sigRef, {
-                    [myCandidatesKey]: arrayUnion(candObj)
+                    [myCandidatesKey]: arrayUnion(JSON.stringify(candObj))
                 }, { merge: true }).catch(()=>{});
             }
         };
 
-        let isNegotiating = false;
-        let activeSessionToken = null;
-        let lastReceiverJoined = null;
-
         const processCandidates = (data) => {
             if (data[theirCandidatesKey] && pc.remoteDescription) {
-                data[theirCandidatesKey].forEach(c => {
-                    const str = JSON.stringify(c);
-                    if (peerConnections[peerName] && !peerConnections[peerName].processedCandidates.has(str)) {
-                        pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
-                        peerConnections[peerName].processedCandidates.add(str);
+                data[theirCandidatesKey].forEach(cStr => {
+                    if (peerConnections[peerName] && !peerConnections[peerName].processedCandidates.has(cStr)) {
+                        try {
+                            const c = JSON.parse(cStr);
+                            pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+                            peerConnections[peerName].processedCandidates.add(cStr);
+                        } catch(e) {}
                     }
                 });
             }
@@ -8826,13 +8832,9 @@
 
         // Signaling Logic
         if (isInitiator) {
-            activeSessionToken = Date.now();
-            // FIX: Initiator ONLY resets its own state to avoid wiping the receiver's ICE candidates!
+            // FIX: Initiator safely clears old session data using merge to prevent wiping receiver's keys
             await setDoc(sigRef, { 
-                sessionToken: activeSessionToken,
-                offer: null, 
-                [myCandidatesKey]: [], 
-                timestamp: Date.now()
+                offer: null, answer: null, [myCandidatesKey]: [], [theirCandidatesKey]: [], timestamp: Date.now()
             }, { merge: true });
 
             const offer = await pc.createOffer();
@@ -8842,71 +8844,37 @@
             peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
                 if (!data) return;
-                
-                // Handle receiver rejoins (Self-healing!)
-                if (data.receiverJoined && data.receiverJoined !== lastReceiverJoined) {
-                    lastReceiverJoined = data.receiverJoined;
-                    if (pc.signalingState === 'stable' && pc.currentRemoteDescription) {
-                        try {
-                            const newOffer = await pc.createOffer({ iceRestart: true });
-                            await pc.setLocalDescription(newOffer);
-                            await setDoc(sigRef, { offer: { type: newOffer.type, sdp: newOffer.sdp }, answer: null, [myCandidatesKey]: [] }, { merge: true });
-                        } catch(e) {}
-                    }
-                }
 
-                // Set remote answer
-                if (data.answer && pc.signalingState !== 'stable') {
+                if (data.answer && !pc.currentRemoteDescription) {
                     try {
                         await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                        processCandidates(data);
                     } catch(e) {}
+                } else if (pc.currentRemoteDescription) {
+                    processCandidates(data);
                 }
-                // Handle answer for ICE restart
-                else if (data.answer && pc.currentRemoteDescription && pc.signalingState === 'have-local-offer') {
-                    try {
-                        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    } catch(e) {}
-                }
-                
-                processCandidates(data);
             });
         } else {
             // Receiver logic
-            // FIX: Receiver ONLY clears its own answer and candidates
             await setDoc(sigRef, { 
-                receiverJoined: Date.now(),
-                answer: null,
-                [myCandidatesKey]: []
+                receiverJoined: Date.now(), answer: null, [myCandidatesKey]: []
             }, { merge: true });
 
             peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
                 if (!data) return;
 
-                // Handle initiator restarts
-                if (!activeSessionToken && data.sessionToken) {
-                    activeSessionToken = data.sessionToken;
-                } else if (data.sessionToken && activeSessionToken && data.sessionToken !== activeSessionToken) {
-                    cleanupPeer(peerName, true); // Keep UI intact to avoid blinking
-                    connectToPeer(peerName, chatId);
-                    return;
-                }
-
-                // Reply with answer
-                let currentOfferSdp = pc.currentRemoteDescription ? pc.currentRemoteDescription.sdp : null;
-
-                if (data.offer && (!pc.currentRemoteDescription || data.offer.sdp !== currentOfferSdp) && !isNegotiating) {
-                    isNegotiating = true;
+                if (data.offer && !pc.currentRemoteDescription) {
                     try {
                         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
                         await setDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } }, { merge: true });
+                        processCandidates(data);
                     } catch(e) {}
-                    isNegotiating = false;
+                } else if (pc.currentRemoteDescription) {
+                    processCandidates(data);
                 }
-
-                processCandidates(data);
             });
         }
     }
