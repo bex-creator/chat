@@ -8801,10 +8801,10 @@
                     sdpMid: event.candidate.sdpMid,
                     sdpMLineIndex: event.candidate.sdpMLineIndex
                 };
-                // Use updateDoc so we don't accidentally wipe answers
-                updateDoc(sigRef, {
+                // FIX: Use setDoc with merge to never accidentally wipe out the other person's data
+                setDoc(sigRef, {
                     [myCandidatesKey]: arrayUnion(candObj)
-                }).catch(()=>{});
+                }, { merge: true }).catch(()=>{});
             }
         };
 
@@ -8827,16 +8827,17 @@
         // Signaling Logic
         if (isInitiator) {
             activeSessionToken = Date.now();
-            // Initiator strictly resets the document state to avoid race conditions from old calls
+            // FIX: Initiator ONLY resets its own state to avoid wiping the receiver's ICE candidates!
             await setDoc(sigRef, { 
                 sessionToken: activeSessionToken,
-                offer: null, answer: null, candidatesA: [], candidatesB: [], timestamp: Date.now(),
-                receiverJoined: null
-            });
+                offer: null, 
+                [myCandidatesKey]: [], 
+                timestamp: Date.now()
+            }, { merge: true });
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            await updateDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } });
+            await setDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } }, { merge: true });
 
             peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
@@ -8849,13 +8850,13 @@
                         try {
                             const newOffer = await pc.createOffer({ iceRestart: true });
                             await pc.setLocalDescription(newOffer);
-                            await setDoc(sigRef, { offer: { type: newOffer.type, sdp: newOffer.sdp }, answer: null }, { merge: true });
+                            await setDoc(sigRef, { offer: { type: newOffer.type, sdp: newOffer.sdp }, answer: null, [myCandidatesKey]: [] }, { merge: true });
                         } catch(e) {}
                     }
                 }
 
                 // Set remote answer
-                if (data.answer && !pc.currentRemoteDescription) {
+                if (data.answer && pc.signalingState !== 'stable') {
                     try {
                         await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                     } catch(e) {}
@@ -8871,7 +8872,12 @@
             });
         } else {
             // Receiver logic
-            await setDoc(sigRef, { receiverJoined: Date.now() }, { merge: true });
+            // FIX: Receiver ONLY clears its own answer and candidates
+            await setDoc(sigRef, { 
+                receiverJoined: Date.now(),
+                answer: null,
+                [myCandidatesKey]: []
+            }, { merge: true });
 
             peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
