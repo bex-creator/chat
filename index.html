@@ -660,6 +660,9 @@
           </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">
+          <button id="btn-start-call" class="hidden p-2 rounded-xl text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)] relative" title="Start Call">
+            <i data-lucide="phone" class="w-5 h-5"></i>
+          </button>
           <button id="btn-chat-bg" class="hidden p-2 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/5" title="Set Chat Background">
             <i data-lucide="image" class="w-5 h-5"></i>
           </button>
@@ -1549,6 +1552,22 @@
       </div>
       <input type="color" id="hidden-bg-color-picker" class="hidden" />
       <input type="color" id="hidden-text-color-picker" class="hidden" />
+  </div>
+
+  <!-- ==================== CALL MODAL (JITSI) ==================== -->
+  <div id="call-modal" class="hidden fixed inset-0 z-[9999] bg-[#0B0E14] flex flex-col animate-toast-in">
+      <div class="h-14 bg-black/50 border-b border-white/5 flex items-center justify-between px-4 flex-shrink-0">
+          <div class="flex items-center gap-2 text-emerald-400 font-bold">
+              <i data-lucide="phone-call" class="w-5 h-5 animate-pulse"></i>
+              <span>Active Call</span>
+          </div>
+          <button onclick="closeCall()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-lg active:scale-95">
+              <i data-lucide="phone-off" class="w-4 h-4"></i> Leave
+          </button>
+      </div>
+      <div id="jitsi-container" class="flex-1 w-full bg-black relative">
+          <!-- Iframe injected here -->
+      </div>
   </div>
 
   <!-- ==================== SCRIPT ==================== -->
@@ -4121,10 +4140,12 @@
 
     function renderHeader() {
       const btnChatBg = document.getElementById('btn-chat-bg');
+      const btnCall = document.getElementById('btn-start-call');
 
       if (activeChatId.startsWith('game_')) {
           updateChatBackground(null);
           btnChatBg.classList.add('hidden');
+          if (btnCall) btnCall.classList.add('hidden');
 
           const game = appGames.find(g => g.id === activeChatId);
           document.getElementById('header-icon-container').innerHTML = `<i data-lucide="${game?.icon || 'gamepad-2'}" class="text-textMuted w-4 h-4"></i>`;
@@ -4140,6 +4161,7 @@
       } else if (activeChatId.startsWith('session_')) {
           updateChatBackground(null);
           btnChatBg.classList.add('hidden');
+          if (btnCall) btnCall.classList.add('hidden');
 
           document.getElementById('header-icon-container').innerHTML = `<i data-lucide="radio" class="text-rose-500 w-4 h-4 animate-pulse"></i>`;
           document.getElementById('header-chat-name').textContent = 'Live Match';
@@ -4154,6 +4176,7 @@
       }
 
       document.getElementById('btn-view-pinned').classList.remove('hidden');
+      if (btnCall) btnCall.classList.remove('hidden');
 
       const activeChat = allChats[activeChatId] || { id: 'global', name: 'Global Chat', type: 'channel', participants: ['All'], isPrivate: false };
       
@@ -4538,6 +4561,26 @@
                   `;
               }
 
+              // Call Invite Rendering
+              let callInviteHTML = '';
+              if (msg.isCallInvite) {
+                  callInviteHTML = `
+                      <div class="mt-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl w-full max-w-[260px] shadow-inner relative overflow-hidden group/call">
+                          <div class="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-emerald-500/0 opacity-0 group-hover/call:opacity-100 transition-opacity translate-x-[-100%] hover:animate-[shine_1.5s_infinite]"></div>
+                          <div class="flex items-center gap-3 mb-4 relative z-10">
+                              <div class="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/30 flex items-center justify-center text-white flex-shrink-0 animate-pulse">
+                                  <i data-lucide="phone" class="w-5 h-5"></i>
+                              </div>
+                              <div class="flex flex-col min-w-0">
+                                  <span class="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">Voice / Video</span>
+                                  <span class="text-[14px] font-semibold text-white truncate">Active Call</span>
+                              </div>
+                          </div>
+                          <button onclick="startOrJoinCall('${msg.chatId}')" class="relative z-10 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"><i data-lucide="video" class="w-4 h-4"></i> Join Call</button>
+                      </div>
+                  `;
+              }
+
               // Poll Rendering
               let pollHTML = '';
               if (msg.isPoll && msg.pollData) {
@@ -4681,7 +4724,7 @@
                         </div>
                       </div>
                       
-                      <div class="w-fit max-w-full ${finalMinWidth} ${finalPadding} ${finalTextSize} leading-relaxed text-slate-100 ${finalShadow} break-words whitespace-pre-wrap text-left ${finalBubbleClass}" ${bubbleStyle}>${replyBlockHTML}${formattedText}${translationHTML}${pollHTML}${attachedImageHTML}${attachedAudioHTML}${gameInviteHTML}</div>
+                      <div class="w-fit max-w-full ${finalMinWidth} ${finalPadding} ${finalTextSize} leading-relaxed text-slate-100 ${finalShadow} break-words whitespace-pre-wrap text-left ${finalBubbleClass}" ${bubbleStyle}>${replyBlockHTML}${formattedText}${translationHTML}${pollHTML}${attachedImageHTML}${attachedAudioHTML}${gameInviteHTML}${callInviteHTML}</div>
                       ${reactionsHTML}
                     </div>
                   </div>
@@ -8357,6 +8400,58 @@
             localStorage.setItem('chat_custom_panel_styles', JSON.stringify(customPanelStyles));
         }
     });
+
+    const btnStartCallEl = document.getElementById('btn-start-call');
+    if (btnStartCallEl) {
+        btnStartCallEl.addEventListener('click', () => {
+            startOrJoinCall();
+        });
+    }
+
+    window.startOrJoinCall = async function(chatIdToJoin = null) {
+        const targetChatId = chatIdToJoin || activeChatId;
+        if (!targetChatId || targetChatId.startsWith('game_') || targetChatId.startsWith('session_')) return;
+
+        // If I am initiating, send a message to chat so others can join easily
+        if (!chatIdToJoin) {
+            const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
+                chatId: targetChatId,
+                text: '',
+                isCallInvite: true,
+                sender: userName,
+                senderNickname: userNickname,
+                senderEmail: firebaseUser.email || null,
+                createdAt: Date.now(),
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                senderPhoto: currentPhotoURL 
+            });
+            markChatAsRead(targetChatId);
+        }
+
+        // Room name should be completely unique to your app's namespace and the current chat ID
+        const roomName = `ChatSpace_${APP_NAMESPACE}_${targetChatId}`.replace(/[^a-zA-Z0-9]/g, '');
+        const modal = document.getElementById('call-modal');
+        const container = document.getElementById('jitsi-container');
+        
+        container.innerHTML = `
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2"></i>
+                <span>Connecting to secure call server...</span>
+            </div>
+            <iframe class="relative z-10" allow="camera; microphone; fullscreen; display-capture; autoplay" src="https://meet.jit.si/${roomName}#userInfo.displayName=${encodeURIComponent(userNickname || userName)}" style="width:100%; height:100%; border:none;"></iframe>
+        `;
+        
+        modal.classList.remove('hidden');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    window.closeCall = function() {
+        const modal = document.getElementById('call-modal');
+        const container = document.getElementById('jitsi-container');
+        container.innerHTML = ''; // Clear iframe to destroy tracks
+        modal.classList.add('hidden');
+    }
 
     bgPicker.addEventListener('input', (e) => {
         if (activeEditTarget && activeEditSelector) {
