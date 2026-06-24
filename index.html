@@ -1555,7 +1555,7 @@
       <input type="color" id="hidden-text-color-picker" class="hidden" />
   </div>
 
-  <!-- ==================== CALL MODAL (FLOATING PiP) ==================== -->
+  <!-- ==================== CALL MODAL (NATIVE P2P WEBRTC) ==================== -->
   <div id="call-modal" class="hidden fixed bottom-6 right-6 w-[400px] h-[500px] z-[9999] bg-[#0B0E14] border border-white/10 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)]">
       <!-- Draggable Header -->
       <div id="call-header" class="h-12 bg-black/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none group">
@@ -1568,12 +1568,13 @@
           </div>
           
           <div class="flex items-center gap-1 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
-              <button onclick="switchCallServer()" class="text-[10px] bg-white/5 hover:bg-white/10 text-slate-300 px-2 py-1.5 rounded border border-white/10 transition-colors uppercase tracking-widest mr-1 flex items-center gap-1.5" title="Switch Server (Bypass Blockers)">
-                  <i data-lucide="refresh-cw" class="w-3 h-3"></i> <span class="hidden sm:inline">Switch</span>
+              <button onclick="toggleAudio()" id="btn-call-audio" class="p-1.5 text-emerald-400 hover:bg-white/10 rounded-lg transition-colors" title="Toggle Microphone">
+                  <i data-lucide="mic" class="w-4 h-4 pointer-events-none"></i>
               </button>
-              <button onclick="popOutCall()" class="p-1.5 text-blue-400 hover:text-white hover:bg-blue-500/20 rounded-lg transition-colors" title="Pop Out to New Tab (Fixes Blank Screens!)">
-                  <i data-lucide="external-link" class="w-4 h-4 pointer-events-none"></i>
+              <button onclick="toggleVideo()" id="btn-call-video" class="p-1.5 text-emerald-400 hover:bg-white/10 rounded-lg transition-colors" title="Toggle Camera">
+                  <i data-lucide="video" class="w-4 h-4 pointer-events-none"></i>
               </button>
+              <div class="w-px h-4 bg-white/10 mx-1"></div>
               <button onclick="toggleMinimizeCall()" id="btn-call-minimize" class="p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Minimize">
                   <i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>
               </button>
@@ -1586,8 +1587,12 @@
           </div>
       </div>
       <!-- Video Container -->
-      <div id="jitsi-container" class="flex-1 w-full bg-black relative flex flex-col">
-          <!-- Iframe injected here -->
+      <div id="custom-call-container" class="flex-1 w-full bg-[#05060A] relative flex flex-wrap content-center justify-center gap-2 p-2 overflow-y-auto">
+          <div id="call-loading-text" class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0">
+              <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2 text-emerald-400"></i>
+              <span class="font-medium text-slate-300">Initializing Native WebRTC...</span>
+              <span class="text-xs mt-3 font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">Securly Bypass Active</span>
+          </div>
       </div>
   </div>
 
@@ -8496,55 +8501,35 @@
         });
     }
 
-    // Call Servers - Restored to obscure Jitsi servers that ALLOW iframes, and removed the base64 avatar param that was breaking URLs
-    const CALL_SERVERS = [
-        { name: "Murena Meet (Stealth)", build: (room, user) => `https://meet.murena.io/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` },
-        { name: "Brave Talk (Secure)", build: (room, user) => `https://talk.brave.com/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` },
-        { name: "Infomaniak (Swiss)", build: (room, user) => `https://kmeet.infomaniak.com/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` },
-        { name: "Jitsi (Standard)", build: (room, user) => `https://meet.jit.si/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}` }
-    ];
-    let currentCallServerIdx = 0;
-    window.currentCallUrl = "";
+    // --- NATIVE P2P WEBRTC ENGINE ---
     
     // Call Window State
     let isCallMinimized = false;
     let isCallFullscreen = false;
     let preFullscreenStyles = { width: '', height: '', left: '', top: '', bottom: '', right: '' };
 
-    window.switchCallServer = function() {
-        currentCallServerIdx = (currentCallServerIdx + 1) % CALL_SERVERS.length;
-        startOrJoinCall(activeChatId, true);
+    // WebRTC State
+    let localStream = null;
+    let peerConnections = {}; // Map of peerId -> { pc, unsubSignaling, processedCandidates }
+    let callUnsubscribe = null;
+    let isAudioMuted = false;
+    let isVideoMuted = false;
+
+    // Standard Google STUN servers (Publicly open, rarely blocked)
+    const rtcConfig = {
+        iceServers: [
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+        ]
     };
 
-    window.popOutCall = function() {
-        if (window.currentCallUrl) {
-            window.open(window.currentCallUrl, '_blank');
-            closeCall(); // Close the PiP window so there's no echo
-        }
-    };
-
-    window.startOrJoinCall = async function(chatIdToJoin = null, isSwitching = false) {
+    window.startOrJoinCall = async function(chatIdToJoin = null) {
         const targetChatId = chatIdToJoin || activeChatId;
         if (!targetChatId || targetChatId.startsWith('game_') || targetChatId.startsWith('session_')) return;
 
-        // Register user in active call state for this channel
-        try {
-            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', targetChatId), {
-                activeCallers: arrayUnion(userName)
-            });
-            window.currentActiveCallChatId = targetChatId;
-        } catch(e) { console.error("Could not register active call", e); }
-
-        // Room name must be unique to your app's namespace and the current chat ID
-        const roomName = `ChatSpace_${APP_NAMESPACE}_${targetChatId}`.replace(/[^a-zA-Z0-9]/g, '');
+        window.currentActiveCallChatId = targetChatId;
         const modal = document.getElementById('call-modal');
-        const container = document.getElementById('jitsi-container');
-        
-        const serverDef = CALL_SERVERS[currentCallServerIdx];
-        const displayName = userNickname || userName;
-        
-        const fullUrl = serverDef.build(roomName, displayName);
-        window.currentCallUrl = fullUrl; // Save for pop-out
+        const container = document.getElementById('custom-call-container');
         
         // Update Title
         const activeChat = allChats[targetChatId];
@@ -8557,37 +8542,287 @@
             }
             document.getElementById('call-room-name-display').textContent = chatTitle;
         }
-        
+
+        // Reset UI Container
         container.innerHTML = `
-            <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0 bg-[#0B0E14] px-4 text-center">
+            <div id="call-loading-text" class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0">
                 <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2 text-emerald-400"></i>
-                <span class="font-medium text-slate-300">Connecting to call...</span>
-                <span class="text-xs mt-3 font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">${serverDef.name}</span>
-                <span class="text-[10px] mt-4 text-slate-500">If the screen stays blank, the server is blocking embeds. Click the blue Pop-Out button above!</span>
+                <span class="font-medium text-slate-300">Initializing Native WebRTC...</span>
+                <span class="text-xs mt-3 font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">Securly Bypass Active</span>
             </div>
-            <iframe class="relative z-10 flex-1" allow="camera; microphone; fullscreen; display-capture; autoplay" src="${fullUrl}" style="width:100%; height:100%; border:none;"></iframe>
+            <div id="video-grid" class="w-full h-full p-2 flex flex-wrap content-center justify-center gap-2 relative z-10">
+                <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50" id="vid-wrapper-local">
+                   <video id="local-video" class="w-full h-full object-cover transform scale-x-[-1]" autoplay muted playsinline></video>
+                   <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10">You</div>
+                </div>
+            </div>
         `;
-        
-        // Reset state if completely hidden
+
+        // Request Media Permissions
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            const localVidEl = document.getElementById('local-video');
+            if (localVidEl) localVidEl.srcObject = localStream;
+            document.getElementById('call-loading-text').classList.add('hidden');
+        } catch(e) {
+            console.error("Media error:", e);
+            document.getElementById('call-loading-text').innerHTML = `
+                <i data-lucide="alert-triangle" class="w-8 h-8 mb-2 text-red-400"></i>
+                <span class="font-bold text-red-400 text-center px-4">Camera/Microphone access denied.<br/>Please allow permissions.</span>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            modal.classList.remove('hidden');
+            return;
+        }
+
+        // Register user in active call state for this channel
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', targetChatId), {
+                activeCallers: arrayUnion(userName)
+            });
+            
+            // If I am initiating, send a message to chat so others can join easily
+            if (!chatIdToJoin) {
+                const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                await setDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'messages', msgId), {
+                    chatId: targetChatId,
+                    text: '',
+                    isCallInvite: true,
+                    sender: userName,
+                    senderNickname: userNickname,
+                    senderEmail: firebaseUser.email || null,
+                    createdAt: Date.now(),
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    senderPhoto: currentPhotoURL 
+                });
+                markChatAsRead(targetChatId);
+            }
+
+        } catch(e) { console.error("Could not register active call", e); }
+
+        // Start listening to the activeCallers array to establish P2P WebRTC connections
+        callUnsubscribe = onSnapshot(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', targetChatId), (snap) => {
+            const data = snap.data();
+            if(!data) return;
+            const callers = data.activeCallers || [];
+
+            // Connect to new peers
+            callers.forEach(peerId => {
+                if (peerId !== userName && !peerConnections[peerId]) {
+                    connectToPeer(peerId, targetChatId);
+                }
+            });
+
+            // Disconnect peers who left
+            Object.keys(peerConnections).forEach(peerId => {
+                if (!callers.includes(peerId)) {
+                    cleanupPeer(peerId);
+                }
+            });
+        });
+
+        // Reset PiP UI state if it was completely hidden
         if (modal.classList.contains('hidden')) {
             modal.style.width = window.innerWidth < 600 ? '100%' : '400px';
             modal.dataset.prevHeight = window.innerWidth < 600 ? '40%' : '500px';
-            modal.style.height = '48px'; // Start Minimized Automatically
+            modal.style.height = '500px'; 
             modal.style.bottom = window.innerWidth < 600 ? '0' : '24px';
             modal.style.right = window.innerWidth < 600 ? '0' : '24px';
             modal.style.top = 'auto';
             modal.style.left = 'auto';
-            isCallMinimized = true;
+            isCallMinimized = false;
             isCallFullscreen = false;
             modal.classList.remove('h-12');
             modal.classList.remove('inset-0', 'rounded-none');
             modal.classList.add('rounded-2xl');
             document.getElementById('btn-call-fullscreen').innerHTML = '<i data-lucide="maximize" class="w-4 h-4 pointer-events-none"></i>';
-            document.getElementById('btn-call-minimize').innerHTML = '<i data-lucide="plus" class="w-4 h-4 pointer-events-none text-emerald-400"></i>';
+            document.getElementById('btn-call-minimize').innerHTML = '<i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>';
         }
         
         modal.classList.remove('hidden');
         if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    async function connectToPeer(peerName, chatId) {
+        const pc = new RTCPeerConnection(rtcConfig);
+        const pairId = [userName, peerName].sort().join('_');
+        const sigRef = doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', chatId, 'webrtc', pairId);
+
+        peerConnections[peerName] = { 
+            pc: pc, 
+            unsubSignaling: null, 
+            processedCandidates: new Set() 
+        };
+
+        // Add local tracks to connection
+        if (localStream) {
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        }
+
+        // Receive remote tracks
+        pc.ontrack = (event) => {
+            let remoteVid = document.getElementById(`remote-video-${peerName}`);
+            if (!remoteVid) {
+                const grid = document.getElementById('video-grid');
+                grid.insertAdjacentHTML('beforeend', `
+                    <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50" id="vid-wrapper-${peerName}">
+                       <video id="remote-video-${peerName}" class="w-full h-full object-cover" autoplay playsinline></video>
+                       <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10">@${peerName}</div>
+                    </div>
+                `);
+                remoteVid = document.getElementById(`remote-video-${peerName}`);
+            }
+            if (remoteVid.srcObject !== event.streams[0]) {
+                remoteVid.srcObject = event.streams[0];
+            }
+        };
+
+        const isInitiator = userName < peerName;
+        const myCandidatesKey = isInitiator ? 'candidatesA' : 'candidatesB';
+        const theirCandidatesKey = isInitiator ? 'candidatesB' : 'candidatesA';
+
+        // Listen for ICE candidates
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                updateDoc(sigRef, {
+                    [myCandidatesKey]: arrayUnion(event.candidate.toJSON())
+                }).catch(()=>{});
+            }
+        };
+
+        // Signaling Logic
+        if (isInitiator) {
+            // Initiator creates the room doc and sets the offer
+            await setDoc(sigRef, { offer: null, answer: null, candidatesA: [], candidatesB: [] });
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await updateDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } });
+
+            peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, (snap) => {
+                const data = snap.data();
+                if (!data) return;
+                
+                // Set remote answer
+                if (!pc.currentRemoteDescription && data.answer) {
+                    pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(e => console.error(e));
+                }
+                
+                // Add their ICE candidates
+                if (data[theirCandidatesKey]) {
+                    data[theirCandidatesKey].forEach(c => {
+                        const str = JSON.stringify(c);
+                        if (!peerConnections[peerName].processedCandidates.has(str)) {
+                            pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+                            peerConnections[peerName].processedCandidates.add(str);
+                        }
+                    });
+                }
+            });
+        } else {
+            // Receiver waits for the offer to appear
+            peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
+                const data = snap.data();
+                if (!data) return;
+
+                // Reply with answer
+                if (!pc.currentRemoteDescription && data.offer) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    await updateDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
+                }
+
+                // Add their ICE candidates
+                if (data[theirCandidatesKey]) {
+                    data[theirCandidatesKey].forEach(c => {
+                        const str = JSON.stringify(c);
+                        if (!peerConnections[peerName].processedCandidates.has(str)) {
+                            pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+                            peerConnections[peerName].processedCandidates.add(str);
+                        }
+                    });
+                }
+            });
+        }
+    }
+
+    function cleanupPeer(peerName) {
+        if (peerConnections[peerName]) {
+            if (peerConnections[peerName].unsubSignaling) {
+                peerConnections[peerName].unsubSignaling();
+            }
+            peerConnections[peerName].pc.close();
+            delete peerConnections[peerName];
+            const wrapper = document.getElementById(`vid-wrapper-${peerName}`);
+            if (wrapper) wrapper.remove();
+        }
+    }
+
+    window.closeCall = async function() {
+        if (window.currentActiveCallChatId && userName) {
+            try {
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', window.currentActiveCallChatId), {
+                    activeCallers: arrayRemove(userName)
+                });
+            } catch(e) {}
+            window.currentActiveCallChatId = null;
+        }
+
+        if (callUnsubscribe) {
+            callUnsubscribe();
+            callUnsubscribe = null;
+        }
+
+        // Cleanup all peer connections
+        Object.keys(peerConnections).forEach(peerId => {
+            cleanupPeer(peerId);
+        });
+
+        // Kill local media tracks to turn off camera light
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+
+        const modal = document.getElementById('call-modal');
+        const container = document.getElementById('custom-call-container');
+        container.innerHTML = ''; 
+        modal.classList.add('hidden');
+    }
+
+    window.toggleAudio = function() {
+        if (localStream) {
+            isAudioMuted = !isAudioMuted;
+            localStream.getAudioTracks().forEach(track => track.enabled = !isAudioMuted);
+            
+            const btn = document.getElementById('btn-call-audio');
+            if (isAudioMuted) {
+                btn.classList.replace('text-emerald-400', 'text-red-400');
+                btn.innerHTML = '<i data-lucide="mic-off" class="w-4 h-4 pointer-events-none"></i>';
+            } else {
+                btn.classList.replace('text-red-400', 'text-emerald-400');
+                btn.innerHTML = '<i data-lucide="mic" class="w-4 h-4 pointer-events-none"></i>';
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    window.toggleVideo = function() {
+        if (localStream) {
+            isVideoMuted = !isVideoMuted;
+            localStream.getVideoTracks().forEach(track => track.enabled = !isVideoMuted);
+            
+            const btn = document.getElementById('btn-call-video');
+            if (isVideoMuted) {
+                btn.classList.replace('text-emerald-400', 'text-red-400');
+                btn.innerHTML = '<i data-lucide="video-off" class="w-4 h-4 pointer-events-none"></i>';
+            } else {
+                btn.classList.replace('text-red-400', 'text-emerald-400');
+                btn.innerHTML = '<i data-lucide="video" class="w-4 h-4 pointer-events-none"></i>';
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
     }
 
     // --- CALL WINDOW CONTROLS (PiP) ---
@@ -8738,21 +8973,14 @@
         window.addEventListener('touchend', stopCallDrag);
     }
 
-    window.closeCall = async function() {
+    // Handle unexpected tab closures during an active call
+    window.addEventListener('beforeunload', () => {
         if (window.currentActiveCallChatId && userName) {
-            try {
-                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', window.currentActiveCallChatId), {
-                    activeCallers: arrayRemove(userName)
-                });
-            } catch(e) {}
-            window.currentActiveCallChatId = null;
+            updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', window.currentActiveCallChatId), {
+                activeCallers: arrayRemove(userName)
+            }).catch(()=>{});
         }
-
-        const modal = document.getElementById('call-modal');
-        const container = document.getElementById('jitsi-container');
-        container.innerHTML = ''; // Clear iframe to destroy tracks
-        modal.classList.add('hidden');
-    }
+    });
 
     // --- CUSTOM VOICE NOTE PLAYER LOGIC ---
     window.currentPlayingAudio = null;
