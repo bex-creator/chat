@@ -8493,12 +8493,12 @@
         });
     }
 
-    // Call Servers - Upgraded to force auto-join and skip pre-join screens
+    // Call Servers - Swapped to Stealth Jitsi servers to fully bypass pre-join screens
     const CALL_SERVERS = [
-        { name: "VDO.Ninja (P2P Stealth)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&push&autojoin#label=${encodeURIComponent(user)}&avatar=${encodeURIComponent(avatar)}` },
-        { name: "Jitsi (Stealth 1)", build: (room, user, avatar) => `https://meet.ffmuc.net/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "Jitsi (Stealth 2)", build: (room, user, avatar) => `https://vc.autistici.org/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "Jitsi (Stealth 3)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` }
+        { name: "VC Server 1 (Stealth)", build: (room, user, avatar) => `https://meet.ffmuc.net/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "VC Server 2 (Stealth)", build: (room, user, avatar) => `https://vc.autistici.org/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "VC Server 3 (Stealth)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "ChitChatter (P2P)", build: (room, user, avatar) => `https://chitchatter.im/public/${room}?displayName=${encodeURIComponent(user)}` }
     ];
     let currentCallServerIdx = 0;
     
