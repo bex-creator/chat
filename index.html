@@ -8514,15 +8514,61 @@
     let callUnsubscribe = null;
     let isAudioMuted = false;
     let isVideoMuted = false;
+    window.audioContext = null;
 
     // Robust STUN servers to bypass strict network firewalls
-    // Removed the broken metered TURN servers that were rejecting connections
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun.cloudflare.com:3478' }
         ]
+    };
+
+    window.attachSpeakingDetector = function(stream, wrapperId, avatarId) {
+        if (!stream || !window.audioContext) return;
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0) return;
+        
+        try {
+            const analyzer = window.audioContext.createAnalyser();
+            analyzer.fftSize = 256;
+            const source = window.audioContext.createMediaStreamSource(new MediaStream([audioTracks[0]]));
+            source.connect(analyzer);
+            
+            const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+            
+            const checkAudio = () => {
+                if (!document.getElementById(wrapperId)) return; // Cleanup loop if element is gone
+                analyzer.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                const avg = sum / dataArray.length;
+                
+                const wrapper = document.getElementById(wrapperId);
+                const avatar = document.getElementById(avatarId);
+                
+                if (avg > 15) { // Speaking threshold
+                    wrapper.style.borderColor = '#10b981'; // Emerald
+                    wrapper.style.boxShadow = '0 0 25px rgba(16,185,129,0.5)';
+                    if (avatar) {
+                        avatar.style.borderColor = '#10b981';
+                        avatar.style.boxShadow = '0 0 20px rgba(16,185,129,0.5)';
+                        avatar.classList.add('scale-110');
+                    }
+                } else {
+                    wrapper.style.borderColor = 'rgba(255,255,255,0.1)';
+                    wrapper.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.5)';
+                    if (avatar) {
+                        avatar.style.borderColor = '#0B0E14';
+                        avatar.style.boxShadow = '0 25px 50px -12px rgba(0,0,0,0.25)';
+                        avatar.classList.remove('scale-110');
+                    }
+                }
+                requestAnimationFrame(checkAudio);
+            };
+            checkAudio();
+        } catch(e) { console.error("Speaking detector failed", e); }
     };
 
     window.startOrJoinCall = async function(chatIdToJoin = null) {
@@ -8533,6 +8579,10 @@
         const modal = document.getElementById('call-modal');
         const container = document.getElementById('custom-call-container');
         
+        // Initialize AudioContext for Talking Indicators on user interaction
+        if (!window.audioContext) window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (window.audioContext.state === 'suspended') window.audioContext.resume();
+
         // Update Title
         const activeChat = allChats[targetChatId];
         if (activeChat) {
@@ -8556,11 +8606,11 @@
                 <span class="text-xs mt-3 font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">Securly Bypass Active</span>
             </div>
             <div id="video-grid" class="w-full h-full p-2 flex flex-wrap content-center justify-center gap-2 relative z-10">
-                <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50" id="vid-wrapper-local">
+                <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50 transition-all duration-300" id="vid-wrapper-local">
                    <img src="${myPhoto}" class="absolute inset-0 w-full h-full object-cover opacity-30 blur-md z-0" />
-                   <img src="${myPhoto}" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-sidebarBg shadow-2xl z-0" />
-                   <video id="local-video" class="relative z-10 w-full h-full object-cover transform scale-x-[-1]" autoplay muted playsinline></video>
-                   <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10 z-20">You</div>
+                   <img src="${myPhoto}" id="avatar-local" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-sidebarBg shadow-2xl z-10 transition-all duration-300" />
+                   <video id="local-video" class="relative z-20 w-full h-full object-cover transform scale-x-[-1] transition-opacity duration-500" autoplay muted playsinline></video>
+                   <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10 z-30">You</div>
                 </div>
             </div>
         `;
@@ -8570,7 +8620,6 @@
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         } catch(e) {
             try {
-                // Fallback to audio only if no camera is detected
                 localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
             } catch (e2) {
                 console.error("Media error:", e2);
@@ -8587,6 +8636,7 @@
         const localVidEl = document.getElementById('local-video');
         if (localVidEl && localStream) {
             localVidEl.srcObject = localStream;
+            window.attachSpeakingDetector(localStream, 'vid-wrapper-local', 'avatar-local');
         }
         document.getElementById('call-loading-text').classList.add('hidden');
 
@@ -8669,35 +8719,46 @@
             processedCandidates: new Set() 
         };
 
+        const peerProfile = allAppUsers.find(u => u.id === peerName.toLowerCase());
+        const peerPhoto = peerProfile?.photoURL || 'https://via.placeholder.com/150';
+
+        // IMMEDIATELY render the video wrapper so the user knows they are connecting
+        const grid = document.getElementById('video-grid');
+        if (!document.getElementById(`vid-wrapper-${peerName}`)) {
+            grid.insertAdjacentHTML('beforeend', `
+                <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50 transition-all duration-300" id="vid-wrapper-${peerName}">
+                   <img src="${peerPhoto}" class="absolute inset-0 w-full h-full object-cover opacity-30 blur-md z-0" />
+                   <img src="${peerPhoto}" id="avatar-${peerName}" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-sidebarBg shadow-2xl z-10 transition-all duration-300" />
+                   <video id="remote-video-${peerName}" class="relative z-20 w-full h-full object-cover opacity-0 transition-opacity duration-500" autoplay playsinline></video>
+                   <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10 z-30">@${peerName}</div>
+                   <div id="status-${peerName}" class="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-yellow-400 uppercase tracking-widest border border-white/10 z-30">Connecting</div>
+                </div>
+            `);
+        }
+
         // Add local tracks to connection
         if (localStream) {
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         }
 
-        const peerProfile = allAppUsers.find(u => u.id === peerName.toLowerCase());
-        const peerPhoto = peerProfile?.photoURL || 'https://via.placeholder.com/150';
-
         // Receive remote tracks reliably
         pc.ontrack = (event) => {
             let remoteVid = document.getElementById(`remote-video-${peerName}`);
-            if (!remoteVid) {
-                const grid = document.getElementById('video-grid');
-                grid.insertAdjacentHTML('beforeend', `
-                    <div class="relative w-full sm:w-[calc(50%-0.5rem)] max-w-md aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/50" id="vid-wrapper-${peerName}">
-                       <img src="${peerPhoto}" class="absolute inset-0 w-full h-full object-cover opacity-30 blur-md z-0" />
-                       <img src="${peerPhoto}" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-sidebarBg shadow-2xl z-0" />
-                       <video id="remote-video-${peerName}" class="relative z-10 w-full h-full object-cover" autoplay playsinline></video>
-                       <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold text-white border border-white/10 z-20">@${peerName}</div>
-                       <div id="status-${peerName}" class="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-yellow-400 uppercase tracking-widest border border-white/10 z-20">Connecting</div>
-                    </div>
-                `);
-                remoteVid = document.getElementById(`remote-video-${peerName}`);
-            }
+            
             if (event.streams && event.streams[0]) {
                 remoteVid.srcObject = event.streams[0];
+                window.attachSpeakingDetector(event.streams[0], `vid-wrapper-${peerName}`, `avatar-${peerName}`);
             } else {
                 if (!remoteVid.srcObject) remoteVid.srcObject = new MediaStream();
                 remoteVid.srcObject.addTrack(event.track);
+                window.attachSpeakingDetector(remoteVid.srcObject, `vid-wrapper-${peerName}`, `avatar-${peerName}`);
+            }
+
+            // Track Mute/Unmute to hide/show the video tag (revealing the PFP underneath)
+            if (event.track.kind === 'video') {
+                event.track.onunmute = () => remoteVid.classList.remove('opacity-0');
+                event.track.onmute = () => remoteVid.classList.add('opacity-0');
+                if (!event.track.muted) remoteVid.classList.remove('opacity-0');
             }
 
             // Force play to bypass browser autoplay restrictions
@@ -8737,9 +8798,10 @@
                     sdpMid: event.candidate.sdpMid,
                     sdpMLineIndex: event.candidate.sdpMLineIndex
                 };
-                setDoc(sigRef, {
+                // Use updateDoc so we don't accidentally wipe answers
+                updateDoc(sigRef, {
                     [myCandidatesKey]: arrayUnion(candObj)
-                }, { merge: true }).catch(()=>{});
+                }).catch(()=>{});
             }
         };
 
@@ -8747,12 +8809,12 @@
 
         // Signaling Logic
         if (isInitiator) {
-            // Initiator creates the room doc and sets the offer (clearing old stale data)
+            // Initiator strictly resets the document state to avoid race conditions from old calls
             await setDoc(sigRef, { offer: null, answer: null, candidatesA: [], candidatesB: [], timestamp: Date.now() });
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            await setDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } }, { merge: true });
+            await updateDoc(sigRef, { offer: { type: offer.type, sdp: offer.sdp } });
 
             peerConnections[peerName].unsubSignaling = onSnapshot(sigRef, async (snap) => {
                 const data = snap.data();
@@ -8789,7 +8851,7 @@
                         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
-                        await setDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } }, { merge: true });
+                        await updateDoc(sigRef, { answer: { type: answer.type, sdp: answer.sdp } });
                     } catch(e) { console.error("Set Offer Error:", e); }
                     isNegotiating = false;
                 }
@@ -8873,6 +8935,13 @@
         if (localStream) {
             isVideoMuted = !isVideoMuted;
             localStream.getVideoTracks().forEach(track => track.enabled = !isVideoMuted);
+            
+            const localVid = document.getElementById('local-video');
+            if (isVideoMuted) {
+                localVid.classList.add('opacity-0');
+            } else {
+                localVid.classList.remove('opacity-0');
+            }
             
             const btn = document.getElementById('btn-call-video');
             if (isVideoMuted) {
