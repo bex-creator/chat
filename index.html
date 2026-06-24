@@ -660,8 +660,9 @@
           </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">
+          <div id="header-call-avatars" class="hidden flex -space-x-2 mr-1 z-10"></div>
           <button id="btn-start-call" class="hidden px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 hover:text-white hover:bg-emerald-500 transition-all border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] flex items-center gap-1.5 text-sm font-bold" title="Join Voice/Video Chat">
-            <i data-lucide="video" class="w-4 h-4"></i> <span class="hidden sm:inline">Join VC</span>
+            <i data-lucide="phone" class="w-4 h-4"></i> <span class="hidden sm:inline">Start Call</span>
           </button>
           <button id="btn-chat-bg" class="hidden p-2 rounded-xl text-textMuted hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/5" title="Set Chat Background">
             <i data-lucide="image" class="w-5 h-5"></i>
@@ -1591,7 +1592,9 @@
       setDoc, 
       updateDoc, 
       getDoc,
-      deleteDoc
+      deleteDoc,
+      arrayUnion,
+      arrayRemove
     } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
     // Firebase Config
@@ -4197,6 +4200,38 @@
 
       const headerIconContainer = document.getElementById('header-icon-container');
       let displayName = activeChat.name;
+
+      // --- LIVE CALL AVATARS RENDERING ---
+      const callAvatarsContainer = document.getElementById('header-call-avatars');
+      
+      if (activeChat.activeCallers && activeChat.activeCallers.length > 0) {
+          let avatarsHTML = '';
+          activeChat.activeCallers.forEach(caller => {
+              const profile = allAppUsers.find(u => u.id === caller.toLowerCase());
+              if (profile) {
+                  const pPhoto = profile.photoURL || 'https://via.placeholder.com/150';
+                  avatarsHTML += `<img src="${pPhoto}" class="w-7 h-7 rounded-full border-2 border-mainBg object-cover relative shadow-sm" title="@${profile.nickname || profile.username}" />`;
+              }
+          });
+          if (callAvatarsContainer) {
+              callAvatarsContainer.innerHTML = avatarsHTML;
+              callAvatarsContainer.classList.remove('hidden');
+          }
+          if (btnCall) {
+              btnCall.classList.add('animate-pulse', 'bg-emerald-500/30');
+              btnCall.innerHTML = '<i data-lucide="phone" class="w-4 h-4"></i> <span class="hidden sm:inline">Join Call</span>';
+          }
+      } else {
+          if (callAvatarsContainer) {
+              callAvatarsContainer.innerHTML = '';
+              callAvatarsContainer.classList.add('hidden');
+          }
+          if (btnCall) {
+              btnCall.classList.remove('animate-pulse', 'bg-emerald-500/30');
+              btnCall.innerHTML = '<i data-lucide="phone" class="w-4 h-4"></i> <span class="hidden sm:inline">Start Call</span>';
+          }
+      }
+      // -----------------------------------
 
       if (activeChat.type === 'channel') {
         headerIconContainer.innerHTML = `<i data-lucide="${activeChat.isPrivate ? 'lock' : 'hash'}" class="text-textMuted w-4 h-4"></i>`;
@@ -8409,30 +8444,32 @@
         });
     }
 
-    // Securly Bypass Calling Servers
+    // Call Servers - Upgraded to pass Avatar URLs to iframe
     const CALL_SERVERS = [
-        // VDO.Ninja uses WebRTC P2P mesh networking - extremely hard for Securly to block entirely
-        { name: "VDO.Ninja (P2P Stealth)", build: (room, user) => `https://vdo.ninja/?room=${room}&label=${encodeURIComponent(user)}` },
-        // Chitchatter is another P2P alternative that flies under the radar
-        { name: "ChitChatter (P2P Secure)", build: (room, user) => `https://chitchatter.im/public/${room}?displayName=${encodeURIComponent(user)}` },
-        // Brave Talk (obscure Jitsi fork)
-        { name: "Brave Talk", build: (room, user) => `https://talk.brave.com/${room}#userInfo.displayName=${encodeURIComponent(user)}` },
-        // Infomaniak (Swiss host, often unblocked)
-        { name: "Infomaniak Host", build: (room, user) => `https://kmeet.infomaniak.com/${room}#userInfo.displayName=${encodeURIComponent(user)}` },
-        // Default Jitsi
-        { name: "Jitsi Default", build: (room, user) => `https://meet.jit.si/${room}#userInfo.displayName=${encodeURIComponent(user)}` }
+        { name: "Infomaniak Host", build: (room, user, avatar) => `https://kmeet.infomaniak.com/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "Brave Talk", build: (room, user, avatar) => `https://talk.brave.com/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "Jitsi Default", build: (room, user, avatar) => `https://meet.jit.si/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "VDO.Ninja (P2P Stealth)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&label=${encodeURIComponent(user)}` },
+        { name: "ChitChatter (P2P Secure)", build: (room, user, avatar) => `https://chitchatter.im/public/${room}?displayName=${encodeURIComponent(user)}` }
     ];
     let currentCallServerIdx = 0;
 
     window.switchCallServer = function() {
         currentCallServerIdx = (currentCallServerIdx + 1) % CALL_SERVERS.length;
-        // Re-join without sending a new chat message invite
         startOrJoinCall(activeChatId, true);
     };
 
     window.startOrJoinCall = async function(chatIdToJoin = null, isSwitching = false) {
         const targetChatId = chatIdToJoin || activeChatId;
         if (!targetChatId || targetChatId.startsWith('game_') || targetChatId.startsWith('session_')) return;
+
+        // Register user in active call state for this channel
+        try {
+            await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', targetChatId), {
+                activeCallers: arrayUnion(userName)
+            });
+            window.currentActiveCallChatId = targetChatId;
+        } catch(e) { console.error("Could not register active call", e); }
 
         // Room name must be unique to your app's namespace and the current chat ID
         const roomName = `ChatSpace_${APP_NAMESPACE}_${targetChatId}`.replace(/[^a-zA-Z0-9]/g, '');
@@ -8441,7 +8478,8 @@
         
         const serverDef = CALL_SERVERS[currentCallServerIdx];
         const displayName = userNickname || userName;
-        const fullUrl = serverDef.build(roomName, displayName);
+        const fallbackAvatar = currentPhotoURL || 'https://via.placeholder.com/150';
+        const fullUrl = serverDef.build(roomName, displayName, fallbackAvatar);
         
         container.innerHTML = `
             <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0">
@@ -8457,12 +8495,30 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    window.closeCall = function() {
+    window.closeCall = async function() {
+        if (window.currentActiveCallChatId && userName) {
+            try {
+                await updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', window.currentActiveCallChatId), {
+                    activeCallers: arrayRemove(userName)
+                });
+            } catch(e) {}
+            window.currentActiveCallChatId = null;
+        }
+
         const modal = document.getElementById('call-modal');
         const container = document.getElementById('jitsi-container');
         container.innerHTML = ''; // Clear iframe to destroy tracks
         modal.classList.add('hidden');
     }
+
+    // Handle unexpected tab closures during an active call
+    window.addEventListener('beforeunload', () => {
+        if (window.currentActiveCallChatId && userName) {
+            updateDoc(doc(db, 'artifacts', APP_NAMESPACE, 'public', 'data', 'chats', window.currentActiveCallChatId), {
+                activeCallers: arrayRemove(userName)
+            }).catch(()=>{});
+        }
+    });
 
     bgPicker.addEventListener('input', (e) => {
         if (activeEditTarget && activeEditSelector) {
