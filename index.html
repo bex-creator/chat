@@ -8493,12 +8493,13 @@
         });
     }
 
-    // Call Servers - Swapped to Stealth Jitsi servers to fully bypass pre-join screens
+    // Call Servers - Removed blocked ffmuc, shifted to international/enterprise stealth servers
     const CALL_SERVERS = [
-        { name: "VC Server 1 (Stealth)", build: (room, user, avatar) => `https://meet.ffmuc.net/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "VC Server 2 (Stealth)", build: (room, user, avatar) => `https://vc.autistici.org/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "VC Server 3 (Stealth)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "ChitChatter (P2P)", build: (room, user, avatar) => `https://chitchatter.im/public/${room}?displayName=${encodeURIComponent(user)}` }
+        { name: "Infomaniak (Swiss Host)", build: (room, user, avatar) => `https://kmeet.infomaniak.com/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "Autistici (Italian Stealth)", build: (room, user, avatar) => `https://vc.autistici.org/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "Hostsharing (German Stealth)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "Jitsi Linux (Stealth 4)", build: (room, user, avatar) => `https://jitsi.linux.it/${room}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "VDO.Ninja (Last Resort P2P)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&push&autojoin#label=${encodeURIComponent(user)}&avatar=${encodeURIComponent(avatar)}` }
     ];
     let currentCallServerIdx = 0;
     
