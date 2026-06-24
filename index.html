@@ -8493,12 +8493,12 @@
         });
     }
 
-    // Call Servers - Upgraded to use Hash fragments to prevent Base64 URL truncation
+    // Call Servers - Upgraded to force auto-join and skip pre-join screens
     const CALL_SERVERS = [
-        { name: "VDO.Ninja (P2P Stealth)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&autojoin#label=${encodeURIComponent(user)}&avatar=${encodeURIComponent(avatar)}` },
-        { name: "Jitsi (Stealth 1)", build: (room, user, avatar) => `https://meet.ffmuc.net/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "Jitsi (Stealth 2)", build: (room, user, avatar) => `https://vc.autistici.org/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
-        { name: "Jitsi (Stealth 3)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` }
+        { name: "VDO.Ninja (P2P Stealth)", build: (room, user, avatar) => `https://vdo.ninja/?room=${room}&push&autojoin#label=${encodeURIComponent(user)}&avatar=${encodeURIComponent(avatar)}` },
+        { name: "Jitsi (Stealth 1)", build: (room, user, avatar) => `https://meet.ffmuc.net/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "Jitsi (Stealth 2)", build: (room, user, avatar) => `https://vc.autistici.org/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` },
+        { name: "Jitsi (Stealth 3)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` }
     ];
     let currentCallServerIdx = 0;
     
@@ -8558,18 +8558,19 @@
         // Reset state if completely hidden
         if (modal.classList.contains('hidden')) {
             modal.style.width = window.innerWidth < 600 ? '100%' : '400px';
-            modal.style.height = window.innerWidth < 600 ? '40%' : '500px';
+            modal.dataset.prevHeight = window.innerWidth < 600 ? '40%' : '500px';
+            modal.style.height = '48px'; // Start Minimized Automatically
             modal.style.bottom = window.innerWidth < 600 ? '0' : '24px';
             modal.style.right = window.innerWidth < 600 ? '0' : '24px';
             modal.style.top = 'auto';
             modal.style.left = 'auto';
-            isCallMinimized = false;
+            isCallMinimized = true;
             isCallFullscreen = false;
             modal.classList.remove('h-12');
             modal.classList.remove('inset-0', 'rounded-none');
             modal.classList.add('rounded-2xl');
             document.getElementById('btn-call-fullscreen').innerHTML = '<i data-lucide="maximize" class="w-4 h-4 pointer-events-none"></i>';
-            document.getElementById('btn-call-minimize').innerHTML = '<i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>';
+            document.getElementById('btn-call-minimize').innerHTML = '<i data-lucide="plus" class="w-4 h-4 pointer-events-none text-emerald-400"></i>';
         }
         
         modal.classList.remove('hidden');
@@ -8649,6 +8650,8 @@
     let isDraggingCall = false;
     let callDragOffsetX = 0;
     let callDragOffsetY = 0;
+    let callDragStartX = 0;
+    let callDragStartY = 0;
 
     function startCallDrag(e) {
         if (e.target.closest('button')) return; // Ignore if clicking a button
@@ -8657,6 +8660,9 @@
         isDraggingCall = true;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        callDragStartX = clientX; // Store start position to detect clicks
+        callDragStartY = clientY;
         
         const rect = callModal.getBoundingClientRect();
         
@@ -8693,11 +8699,20 @@
         callModal.style.top = `${newY}px`;
     }
 
-    function stopCallDrag() {
+    function stopCallDrag(e) {
         if (!isDraggingCall) return;
         isDraggingCall = false;
         callModal.style.transition = ''; // Re-enable transitions
         document.body.style.userSelect = '';
+        
+        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+        
+        // Expand the UI if the user just clicked the header while minimized without dragging!
+        const distMoved = Math.abs(clientX - callDragStartX) + Math.abs(clientY - callDragStartY);
+        if (distMoved < 5 && isCallMinimized) {
+            toggleMinimizeCall();
+        }
     }
 
     if (callHeader) {
