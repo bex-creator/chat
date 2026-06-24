@@ -1555,19 +1555,35 @@
       <input type="color" id="hidden-text-color-picker" class="hidden" />
   </div>
 
-  <!-- ==================== CALL MODAL (JITSI) ==================== -->
-  <div id="call-modal" class="hidden fixed inset-0 z-[9999] bg-[#0B0E14] flex flex-col animate-toast-in">
-      <div class="h-14 bg-black/50 border-b border-white/5 flex items-center justify-between px-4 flex-shrink-0">
-          <div class="flex items-center gap-2 text-emerald-400 font-bold">
-              <i data-lucide="phone-call" class="w-5 h-5 animate-pulse"></i>
-              <span>Active Call</span>
-              <button onclick="switchCallServer()" class="ml-4 text-[10px] bg-white/10 hover:bg-white/20 text-slate-300 px-2.5 py-1 rounded-md border border-white/10 transition-colors uppercase tracking-widest flex items-center gap-1.5" title="If blocked by Securly, click to try another server"><i data-lucide="refresh-cw" class="w-3 h-3"></i> Try Alternate Server</button>
+  <!-- ==================== CALL MODAL (FLOATING PiP) ==================== -->
+  <div id="call-modal" class="hidden fixed bottom-6 right-6 w-[400px] h-[500px] z-[9999] bg-[#0B0E14] border border-white/10 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)]">
+      <!-- Draggable Header -->
+      <div id="call-header" class="h-12 bg-black/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none group">
+          <div class="flex items-center gap-2 text-emerald-400 font-bold pointer-events-none">
+              <div class="relative flex items-center justify-center w-6 h-6">
+                  <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-20 animate-ping"></span>
+                  <i data-lucide="phone-call" class="w-4 h-4 relative z-10"></i>
+              </div>
+              <span class="text-sm truncate max-w-[120px]" id="call-room-name-display">Active Call</span>
           </div>
-          <button onclick="closeCall()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-lg active:scale-95">
-              <i data-lucide="phone-off" class="w-4 h-4"></i> Leave
-          </button>
+          
+          <div class="flex items-center gap-1 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
+              <button onclick="switchCallServer()" class="text-[10px] bg-white/5 hover:bg-white/10 text-slate-300 px-2 py-1.5 rounded border border-white/10 transition-colors uppercase tracking-widest mr-1 flex items-center gap-1.5" title="Switch Server (Bypass Blockers)">
+                  <i data-lucide="refresh-cw" class="w-3 h-3"></i> <span class="hidden sm:inline">Switch</span>
+              </button>
+              <button onclick="toggleMinimizeCall()" id="btn-call-minimize" class="p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Minimize">
+                  <i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+              <button onclick="toggleFullscreenCall()" id="btn-call-fullscreen" class="p-1.5 text-textMuted hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Fullscreen">
+                  <i data-lucide="maximize" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+              <button onclick="closeCall()" class="ml-1 bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white p-1.5 rounded-lg transition-colors" title="Leave Call">
+                  <i data-lucide="phone-off" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+          </div>
       </div>
-      <div id="jitsi-container" class="flex-1 w-full bg-black relative">
+      <!-- Video Container -->
+      <div id="jitsi-container" class="flex-1 w-full bg-black relative flex flex-col">
           <!-- Iframe injected here -->
       </div>
   </div>
@@ -8452,6 +8468,11 @@
         { name: "Jitsi (Stealth 3)", build: (room, user, avatar) => `https://meet.hostsharing.net/${room}#config.disableDeepLinking=true&userInfo.displayName=${encodeURIComponent(user)}&userInfo.avatarUrl=${encodeURIComponent(avatar)}` }
     ];
     let currentCallServerIdx = 0;
+    
+    // Call Window State
+    let isCallMinimized = false;
+    let isCallFullscreen = false;
+    let preFullscreenStyles = { width: '', height: '', left: '', top: '', bottom: '', right: '' };
 
     window.switchCallServer = function() {
         currentCallServerIdx = (currentCallServerIdx + 1) % CALL_SERVERS.length;
@@ -8480,18 +8501,180 @@
         const fallbackAvatar = currentPhotoURL || 'https://via.placeholder.com/150';
         const fullUrl = serverDef.build(roomName, displayName, fallbackAvatar);
         
+        // Update Title
+        const activeChat = allChats[targetChatId];
+        if (activeChat) {
+            let chatTitle = activeChat.name;
+            if (activeChat.type === 'dm') {
+                const otherParticipant = (activeChat.participants || []).find(p => p.toLowerCase() !== userName.toLowerCase());
+                const otherProfile = allAppUsers.find(u => u.id === otherParticipant?.toLowerCase());
+                chatTitle = otherProfile?.nickname || otherParticipant || 'Direct Message';
+            }
+            document.getElementById('call-room-name-display').textContent = chatTitle;
+        }
+        
         container.innerHTML = `
-            <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0">
-                <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2"></i>
-                <span>Connecting to secure call server...</span>
-                <span class="text-sm mt-3 font-bold text-emerald-400">Network: ${serverDef.name}</span>
-                <span class="text-xs mt-1 text-slate-400">If blocked, click "Try Alternate Server" at the top!</span>
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-textMuted pointer-events-none z-0 bg-[#0B0E14]">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2 text-emerald-400"></i>
+                <span class="font-medium text-slate-300">Connecting to call...</span>
+                <span class="text-xs mt-3 font-bold text-emerald-400/70 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">${serverDef.name}</span>
             </div>
-            <iframe class="relative z-10" allow="camera; microphone; fullscreen; display-capture; autoplay" src="${fullUrl}" style="width:100%; height:100%; border:none;"></iframe>
+            <iframe class="relative z-10 flex-1" allow="camera; microphone; fullscreen; display-capture; autoplay" src="${fullUrl}" style="width:100%; height:100%; border:none;"></iframe>
         `;
+        
+        // Reset state if completely hidden
+        if (modal.classList.contains('hidden')) {
+            modal.style.width = window.innerWidth < 600 ? '100%' : '400px';
+            modal.style.height = window.innerWidth < 600 ? '40%' : '500px';
+            modal.style.bottom = window.innerWidth < 600 ? '0' : '24px';
+            modal.style.right = window.innerWidth < 600 ? '0' : '24px';
+            modal.style.top = 'auto';
+            modal.style.left = 'auto';
+            isCallMinimized = false;
+            isCallFullscreen = false;
+            modal.classList.remove('h-12');
+            modal.classList.remove('inset-0', 'rounded-none');
+            modal.classList.add('rounded-2xl');
+            document.getElementById('btn-call-fullscreen').innerHTML = '<i data-lucide="maximize" class="w-4 h-4 pointer-events-none"></i>';
+            document.getElementById('btn-call-minimize').innerHTML = '<i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>';
+        }
         
         modal.classList.remove('hidden');
         if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    // --- CALL WINDOW CONTROLS (PiP) ---
+    window.toggleMinimizeCall = function() {
+        const modal = document.getElementById('call-modal');
+        const minBtn = document.getElementById('btn-call-minimize');
+        
+        if (isCallFullscreen) window.toggleFullscreenCall(); // Exit fullscreen first
+        
+        isCallMinimized = !isCallMinimized;
+        
+        if (isCallMinimized) {
+            // Save height before minimizing
+            modal.dataset.prevHeight = modal.style.height || '500px';
+            modal.style.height = '48px'; // Just the header height
+            minBtn.innerHTML = '<i data-lucide="plus" class="w-4 h-4 pointer-events-none text-emerald-400"></i>';
+        } else {
+            modal.style.height = modal.dataset.prevHeight || '500px';
+            minBtn.innerHTML = '<i data-lucide="minus" class="w-4 h-4 pointer-events-none"></i>';
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    window.toggleFullscreenCall = function() {
+        const modal = document.getElementById('call-modal');
+        const fsBtn = document.getElementById('btn-call-fullscreen');
+        
+        if (isCallMinimized) window.toggleMinimizeCall(); // Restore if minimized
+        
+        isCallFullscreen = !isCallFullscreen;
+        
+        if (isCallFullscreen) {
+            // Save current floating state
+            preFullscreenStyles = {
+                width: modal.style.width,
+                height: modal.style.height,
+                left: modal.style.left,
+                top: modal.style.top,
+                bottom: modal.style.bottom,
+                right: modal.style.right
+            };
+            
+            // Apply fullscreen
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.left = '0';
+            modal.style.top = '0';
+            modal.style.bottom = 'auto';
+            modal.style.right = 'auto';
+            modal.classList.add('rounded-none');
+            modal.classList.remove('rounded-2xl');
+            
+            fsBtn.innerHTML = '<i data-lucide="minimize" class="w-4 h-4 pointer-events-none text-emerald-400"></i>';
+        } else {
+            // Restore floating state
+            modal.style.width = preFullscreenStyles.width || '400px';
+            modal.style.height = preFullscreenStyles.height || '500px';
+            modal.style.left = preFullscreenStyles.left;
+            modal.style.top = preFullscreenStyles.top;
+            modal.style.bottom = preFullscreenStyles.bottom || '24px';
+            modal.style.right = preFullscreenStyles.right || '24px';
+            modal.classList.remove('rounded-none');
+            modal.classList.add('rounded-2xl');
+            
+            fsBtn.innerHTML = '<i data-lucide="maximize" class="w-4 h-4 pointer-events-none"></i>';
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    // --- CALL WINDOW DRAGGING LOGIC ---
+    const callModal = document.getElementById('call-modal');
+    const callHeader = document.getElementById('call-header');
+    let isDraggingCall = false;
+    let callDragOffsetX = 0;
+    let callDragOffsetY = 0;
+
+    function startCallDrag(e) {
+        if (e.target.closest('button')) return; // Ignore if clicking a button
+        if (isCallFullscreen) return; // Don't drag if fullscreen
+        
+        isDraggingCall = true;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const rect = callModal.getBoundingClientRect();
+        
+        // Convert bottom/right positioning to top/left for smooth dragging
+        if (callModal.style.bottom !== 'auto' || callModal.style.right !== 'auto') {
+            callModal.style.top = rect.top + 'px';
+            callModal.style.left = rect.left + 'px';
+            callModal.style.bottom = 'auto';
+            callModal.style.right = 'auto';
+        }
+
+        callDragOffsetX = clientX - rect.left;
+        callDragOffsetY = clientY - rect.top;
+        
+        callModal.style.transition = 'none'; // Disable smooth transitions during drag
+        document.body.style.userSelect = 'none'; // Prevent text highlighting
+    }
+
+    function moveCallDrag(e) {
+        if (!isDraggingCall) return;
+        e.preventDefault();
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        let newX = clientX - callDragOffsetX;
+        let newY = clientY - callDragOffsetY;
+        
+        // Bounds checking
+        newX = Math.max(0, Math.min(newX, window.innerWidth - callModal.offsetWidth));
+        newY = Math.max(0, Math.min(newY, window.innerHeight - callModal.offsetHeight));
+        
+        callModal.style.left = `${newX}px`;
+        callModal.style.top = `${newY}px`;
+    }
+
+    function stopCallDrag() {
+        if (!isDraggingCall) return;
+        isDraggingCall = false;
+        callModal.style.transition = ''; // Re-enable transitions
+        document.body.style.userSelect = '';
+    }
+
+    if (callHeader) {
+        callHeader.addEventListener('mousedown', startCallDrag);
+        window.addEventListener('mousemove', moveCallDrag, { passive: false });
+        window.addEventListener('mouseup', stopCallDrag);
+        
+        callHeader.addEventListener('touchstart', startCallDrag, { passive: false });
+        window.addEventListener('touchmove', moveCallDrag, { passive: false });
+        window.addEventListener('touchend', stopCallDrag);
     }
 
     window.closeCall = async function() {
