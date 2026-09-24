@@ -14,9 +14,9 @@
                 let mathHash = 0;
                 for(let i = 0; i < 500; i++) { mathHash += (Math.sqrt(i) * 2.5); }
                 
-                // Domain verification
+                // Domain verification updated for the chat app
                 const currentHref = window.location.href;
-                const targetDomain = "bex-creator.github.io/Nexus-store/";
+                const targetDomain = "bex-creator.github.io/chat/";
                 const isValid = currentHref.includes(targetDomain) || currentHref.includes("127.0.0.1") || currentHref.includes("localhost");
                 
                 // Strip getter, overwrite with static primitive cache
@@ -71,7 +71,7 @@
                             document.close();
                         } else {
                             // 1. Lock the screen
-                            document.body.innerHTML = "<h2 style='color:red;font-family:sans-serif;text-align:center;margin-top:20vh;'>Unauthorized Host: Content locked to Nexus-store.</h2>";
+                            document.body.innerHTML = "<h2 style='color:red;font-family:sans-serif;text-align:center;margin-top:20vh;'>Unauthorized Host: Content locked to Bex-Creator Chat.</h2>";
                             
                             // 2. Fire the silent alert beacon to Discord
                             const stolenUrl = window.location.href;
@@ -84,7 +84,7 @@
                                     'Content-Type': 'application/json',
                                 },
                                 body: JSON.stringify({
-                                    content: `🚨 **Security Alert:** Your Nexus Store code was just executed on an unauthorized domain!\n**Location:** ${stolenUrl}`
+                                    content: `🚨 **Security Alert:** Your Chat App code was just executed on an unauthorized domain!\n**Location:** ${stolenUrl}`
                                 })
                             }).catch(e => {
                                 // Catch errors silently
